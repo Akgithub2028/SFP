@@ -4,6 +4,7 @@
 
 const DATA_URL =
   "https://raw.githubusercontent.com/paradigmxyz/sfp/master/leaderboard.json";
+const API_BASE = location.port === "5173" ? "http://localhost:8090" : "";
 
 // Prometheus is proxied through nginx at /api/v1/
 const PROM_API = "/api/v1";
@@ -296,19 +297,42 @@ async function loadCharts(): Promise<void> {
 // Init
 // ---------------------------------------------------------------------------
 
-async function init(): Promise<void> {
-  // Load leaderboard data
+async function fetchLeaderboard(): Promise<Entry[]> {
+  // Try API first (has latest data from SQLite)
+  try {
+    const res = await fetch(`${API_BASE}/leaderboard`);
+    if (res.ok) {
+      const data = await res.json();
+      return data.entries ?? [];
+    }
+  } catch { /* fall through */ }
+
+  // Fall back to static JSON from GitHub
   try {
     const res = await fetch(DATA_URL);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const data: LeaderboardData = await res.json();
-    renderInfo(data);
-    renderTable(data.entries);
-    setupSort(data.entries);
-  } catch {
-    const empty = document.getElementById("empty-state")!;
-    empty.style.display = "block";
-  }
+    if (res.ok) {
+      const data = await res.json();
+      return data.entries ?? [];
+    }
+  } catch { /* fall through */ }
+
+  return [];
+}
+
+async function init(): Promise<void> {
+  // Load leaderboard info (static)
+  try {
+    const res = await fetch(DATA_URL);
+    if (res.ok) {
+      const data: LeaderboardData = await res.json();
+      renderInfo(data);
+    }
+  } catch { /* ignore */ }
+
+  // Load entries (API -> GitHub fallback)
+  const entries = await fetchLeaderboard();
+  renderTable(entries);
+  setupSort(entries);
 
   // Load Prometheus charts
   await loadCharts();

@@ -124,11 +124,14 @@ For the full research context (hypotheses, prior work, experimental design), see
 
 To add a new method:
 1. Add a loss function to `methods.py`
-2. Open a PR
-3. A maintainer labels it `benchmark` — Modal spins up a GPU and runs the full benchmark automatically
-4. Scores are posted on your PR as a comment
+2. Submit it:
+```bash
+python submit.py --name my_method --contributor "Your Name"
+```
 
-No GPU required on your end. See [dev/LEADERBOARD.md](dev/LEADERBOARD.md) for details.
+That's it. A GPU spins up in the cloud, runs the full benchmark (3 seeds, ~45 min), and your score appears on the leaderboard automatically. No GPU, no PR, no waiting for review.
+
+See [dev/LEADERBOARD.md](dev/LEADERBOARD.md) for details.
 
 ## Cite
 
