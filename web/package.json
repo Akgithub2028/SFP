@@ -7,10 +7,9 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "deploy": "wrangler pages deploy dist"
+    "deploy": "echo 'Deploy via GH Actions self-hosted runner'"
   },
   "devDependencies": {
-    "vite": "^6.0.0",
-    "wrangler": "^4.0.0"
+    "vite": "^6.0.0"
   }
 }

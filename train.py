@@ -55,7 +55,7 @@ config = {
     "preserve_r": 32,
     "sfp_lambda": 0.1,
     "max_length": 512,
-    "wandb_project": "",
+    "pushgateway": "",
     "eval_every": 0,
 }
 
@@ -110,38 +110,27 @@ def print_banner(cfg: dict) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Wandb helpers
+# Metrics (optional Prometheus push)
 # ---------------------------------------------------------------------------
 
 
-def wandb_init(cfg: dict):
-    """Try to init wandb. Returns the run object or None."""
-    if not cfg["wandb_project"]:
+def metrics_init(cfg: dict):
+    """Try to init Prometheus metrics logger. Returns logger or None."""
+    if not cfg["pushgateway"]:
         return None
     try:
-        import wandb
+        from scripts.metrics import MetricsLogger
 
-        run = wandb.init(
-            project=cfg["wandb_project"],
-            config=cfg,
-            name=f"{cfg['method']}_mem{cfg['memory']}",
+        return MetricsLogger(
+            method=cfg["method"],
+            memory=str(cfg["memory"]),
+            seed=cfg["seed"],
+            model=cfg["model"],
+            gateway=cfg["pushgateway"],
         )
-        return run
     except Exception as e:
-        print(f"[warn] wandb init failed: {e}")
+        print(f"[warn] metrics init failed: {e}")
         return None
-
-
-def wandb_log(run, payload: dict) -> None:
-    """Log to wandb if active. Never raises."""
-    if run is None:
-        return
-    try:
-        import wandb
-
-        wandb.log(payload)
-    except Exception:
-        pass
 
 
 # ---------------------------------------------------------------------------
@@ -180,8 +169,8 @@ if __name__ == "__main__":
     tasks = [t.strip() for t in cfg["tasks"].split(",")]
     print(f"\nTask sequence: {tasks}\n")
 
-    # Wandb
-    wb_run = wandb_init(cfg)
+    # Metrics (Prometheus pushgateway, optional)
+    metrics = metrics_init(cfg)
 
     # State
     os.makedirs(cfg["out_dir"], exist_ok=True)
@@ -276,8 +265,9 @@ if __name__ == "__main__":
                     f"elapsed {elapsed:.1f}s"
                 )
             pbar.set_postfix(loss=f"{loss_val:.4f}")
-            global_step = step + task_idx * cfg["steps_per_task"]
-            wandb_log(wb_run, {"step": global_step, "loss": loss_val, "task": task_name})
+            if metrics and step % 10 == 0:
+                global_step = step + task_idx * cfg["steps_per_task"]
+                metrics.push_step(global_step, task_name, loss_val)
 
             # Mid-task eval
             if cfg["eval_every"] > 0 and (step + 1) % cfg["eval_every"] == 0:
@@ -285,7 +275,6 @@ if __name__ == "__main__":
                 tasks_so_far = tasks[: task_idx + 1]
                 mid_results = evaluate_all(model, tokenizer, tasks_so_far, mode=cfg["mode"])
                 print_results_table(mid_results)
-                wandb_log(wb_run, {"mid_eval": mid_results})
                 model.train()
 
         # -------------------------------------------------------------------
@@ -308,7 +297,9 @@ if __name__ == "__main__":
         # Print and log
         forgetting = compute_forgetting(results_history)
         print_results_table(results, forgetting=forgetting)
-        wandb_log(wb_run, {"eval": results, "forgetting": forgetting})
+        if metrics:
+            bwt_so_far = compute_bwt(results_history)
+            metrics.push_eval(results, bwt_so_far)
 
         # Save results incrementally
         results_path = os.path.join(cfg["out_dir"], "results.json")
@@ -359,11 +350,7 @@ if __name__ == "__main__":
         json.dump(final_results, f, indent=2, default=str)
     print(f"Results saved to {results_path}")
 
-    # Finish wandb
-    if wb_run is not None:
-        try:
-            import wandb
-
-            wandb.finish()
-        except Exception:
-            pass
+    # Push final metrics
+    if metrics:
+        metrics.push_summary(retention, plasticity)
+        metrics.close()

@@ -16,10 +16,8 @@ dependencies = [
     "scikit-learn>=1.4",
     "tqdm>=4.66",
     "pyyaml>=6.0",
-    "wandb>=0.16",
     "scipy",
     "pandas",
-    "paperbanana",
 ]
 
 [project.optional-dependencies]
@@ -28,6 +26,9 @@ dev = [
     "pytest",
     "ipython",
     "jupyter",
+]
+metrics = [
+    "prometheus-client>=0.20",
 ]
 
 [tool.ruff]

@@ -1,4 +1,4 @@
-name: Deploy Leaderboard
+name: Deploy Dashboard
 
 on:
   push:
@@ -10,7 +10,7 @@ on:
 
 jobs:
   deploy:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, sfp]
     steps:
       - uses: actions/checkout@v4
 
@@ -19,14 +19,12 @@ jobs:
         with:
           node-version: "22"
 
-      - name: Install & Build
-        run: npm install && npm run build
+      - name: Build
+        run: npm ci && npm run build
         working-directory: web
 
-      - name: Deploy to Cloudflare Pages
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy dist --project-name=sfp-leaderboard
-          workingDirectory: web
+      - name: Deploy
+        run: |
+          rm -rf /home/ubuntu/sfp-dashboard/*
+          cp -r web/dist/* /home/ubuntu/sfp-dashboard/
+          echo "Deployed to /home/ubuntu/sfp-dashboard"

@@ -1,9 +1,12 @@
 /**
- * sfp leaderboard — fetch data from GitHub, render table.
+ * sfp leaderboard — fetch leaderboard from GitHub, loss curves from Prometheus.
  */
 
 const DATA_URL =
   "https://raw.githubusercontent.com/paradigmxyz/sfp/master/leaderboard.json";
+
+// Prometheus is proxied through nginx at /api/v1/
+const PROM_API = "/api/v1";
 
 interface Entry {
   rank?: number;
@@ -34,19 +37,29 @@ interface LeaderboardData {
   entries: Entry[];
 }
 
+// ---------------------------------------------------------------------------
+// Leaderboard table
+// ---------------------------------------------------------------------------
+
 function fmt(val: number, std?: number): string {
   const s = val.toFixed(4);
   if (std !== undefined && std > 0) {
-    return `${s} <span class="std">±${std.toFixed(4)}</span>`;
+    return `${s} <span class="std">+/-${std.toFixed(4)}</span>`;
   }
   return s;
 }
 
 function medalIcon(rank: number): string {
-  if (rank === 1) return '<span class="medal-1">🥇</span>';
-  if (rank === 2) return '<span class="medal-2">🥈</span>';
-  if (rank === 3) return '<span class="medal-3">🥉</span>';
+  if (rank === 1) return '<span class="medal-1">1</span>';
+  if (rank === 2) return '<span class="medal-2">2</span>';
+  if (rank === 3) return '<span class="medal-3">3</span>';
   return `${rank}`;
+}
+
+function esc(s: string): string {
+  const div = document.createElement("div");
+  div.textContent = s;
+  return div.innerHTML;
 }
 
 function renderTable(entries: Entry[]): void {
@@ -57,20 +70,15 @@ function renderTable(entries: Entry[]): void {
     empty.style.display = "block";
     return;
   }
-
   empty.style.display = "none";
 
-  // Sort by score descending
-  const sorted = [...entries].sort(
-    (a, b) => b.score_mean - a.score_mean
-  );
-
+  const sorted = [...entries].sort((a, b) => b.score_mean - a.score_mean);
   tbody.innerHTML = sorted
     .map((e, i) => {
       const rank = i + 1;
       const prLink = e.pr
         ? `<a href="${e.pr}">#${e.pr.split("/").pop()}</a>`
-        : "—";
+        : "";
       return `<tr>
         <td class="rank">${medalIcon(rank)}</td>
         <td class="score num">${fmt(e.score_mean, e.score_std)}</td>
@@ -89,7 +97,7 @@ function renderTable(entries: Entry[]): void {
 function renderInfo(data: LeaderboardData): void {
   const b = data.benchmark;
   setText("info-model", b.model.split("/").pop() || b.model);
-  setText("info-tasks", b.tasks.join(" → "));
+  setText("info-tasks", b.tasks.join(" -> "));
   setText("info-steps", `${b.steps_per_task}/task`);
   setText("info-memory", `M=${b.memory}`);
   setText("info-seeds", b.seeds.join(", "));
@@ -99,12 +107,6 @@ function renderInfo(data: LeaderboardData): void {
 function setText(id: string, text: string): void {
   const el = document.getElementById(id);
   if (el) el.textContent = text;
-}
-
-function esc(s: string): string {
-  const div = document.createElement("div");
-  div.textContent = s;
-  return div.innerHTML;
 }
 
 function setupSort(entries: Entry[]): void {
@@ -122,7 +124,180 @@ function setupSort(entries: Entry[]): void {
   });
 }
 
+// ---------------------------------------------------------------------------
+// Prometheus charts (loss curves, eval scores)
+// ---------------------------------------------------------------------------
+
+interface PromResult {
+  metric: Record<string, string>;
+  values: [number, string][];
+}
+
+async function promQuery(query: string, start: string, end: string, step: string): Promise<PromResult[]> {
+  const params = new URLSearchParams({ query, start, end, step });
+  try {
+    const res = await fetch(`${PROM_API}/query_range?${params}`);
+    if (!res.ok) return [];
+    const json = await res.json();
+    return json.data?.result ?? [];
+  } catch {
+    return [];
+  }
+}
+
+async function promInstant(query: string): Promise<PromResult[]> {
+  try {
+    const res = await fetch(`${PROM_API}/query?query=${encodeURIComponent(query)}`);
+    if (!res.ok) return [];
+    const json = await res.json();
+    return json.data?.result ?? [];
+  } catch {
+    return [];
+  }
+}
+
+function drawChart(canvas: HTMLCanvasElement, series: { label: string; data: [number, number][] }[]): void {
+  const ctx = canvas.getContext("2d");
+  if (!ctx || series.length === 0) return;
+
+  const w = canvas.width = canvas.offsetWidth * 2;
+  const h = canvas.height = canvas.offsetHeight * 2;
+  ctx.scale(2, 2);
+  const cw = w / 2, ch = h / 2;
+  const pad = { top: 20, right: 20, bottom: 30, left: 50 };
+  const pw = cw - pad.left - pad.right;
+  const ph = ch - pad.top - pad.bottom;
+
+  // Find ranges
+  let xMin = Infinity, xMax = -Infinity, yMin = Infinity, yMax = -Infinity;
+  for (const s of series) {
+    for (const [x, y] of s.data) {
+      xMin = Math.min(xMin, x); xMax = Math.max(xMax, x);
+      yMin = Math.min(yMin, y); yMax = Math.max(yMax, y);
+    }
+  }
+  if (xMin === xMax) xMax = xMin + 1;
+  if (yMin === yMax) { yMin -= 0.1; yMax += 0.1; }
+  yMin = Math.max(0, yMin - (yMax - yMin) * 0.05);
+  yMax = yMax + (yMax - yMin) * 0.05;
+
+  const toX = (v: number) => pad.left + ((v - xMin) / (xMax - xMin)) * pw;
+  const toY = (v: number) => pad.top + (1 - (v - yMin) / (yMax - yMin)) * ph;
+
+  // Background
+  ctx.fillStyle = "#0a0a0a";
+  ctx.fillRect(0, 0, cw, ch);
+
+  // Grid
+  ctx.strokeStyle = "#1a1a1a";
+  ctx.lineWidth = 0.5;
+  for (let i = 0; i <= 4; i++) {
+    const y = pad.top + (ph / 4) * i;
+    ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(cw - pad.right, y); ctx.stroke();
+  }
+
+  // Axes labels
+  ctx.fillStyle = "#888";
+  ctx.font = "10px monospace";
+  ctx.textAlign = "right";
+  for (let i = 0; i <= 4; i++) {
+    const v = yMax - ((yMax - yMin) / 4) * i;
+    ctx.fillText(v.toFixed(2), pad.left - 5, pad.top + (ph / 4) * i + 4);
+  }
+  ctx.textAlign = "center";
+  ctx.fillText(`${Math.round(xMin)}`, toX(xMin), ch - 5);
+  ctx.fillText(`${Math.round(xMax)}`, toX(xMax), ch - 5);
+
+  // Series
+  const colors = ["#22c55e", "#60a5fa", "#f59e0b", "#ef4444", "#a78bfa", "#ec4899"];
+  series.forEach((s, idx) => {
+    ctx.strokeStyle = colors[idx % colors.length];
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    s.data.forEach(([x, y], i) => {
+      const px = toX(x), py = toY(y);
+      if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    });
+    ctx.stroke();
+
+    // Legend
+    const lx = pad.left + 10 + idx * 80;
+    ctx.fillStyle = colors[idx % colors.length];
+    ctx.fillRect(lx, 5, 12, 12);
+    ctx.fillStyle = "#ccc";
+    ctx.textAlign = "left";
+    ctx.font = "9px monospace";
+    ctx.fillText(s.label, lx + 16, 14);
+  });
+}
+
+async function loadCharts(): Promise<void> {
+  const chartsEl = document.getElementById("charts")!;
+
+  // Check if Prometheus is reachable
+  const test = await promInstant("up");
+  if (test.length === 0) {
+    chartsEl.innerHTML = '<p class="chart-note">Prometheus not available (charts require dev-georgios).</p>';
+    return;
+  }
+
+  // Loss curves (last 24h)
+  const now = new Date();
+  const dayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+  const lossSeries = await promQuery(
+    "sfp_train_loss",
+    dayAgo.toISOString(),
+    now.toISOString(),
+    "30s",
+  );
+
+  if (lossSeries.length > 0) {
+    const lossCanvas = document.createElement("canvas");
+    lossCanvas.className = "chart";
+    const lossTitle = document.createElement("h3");
+    lossTitle.textContent = "Training Loss (last 24h)";
+    chartsEl.appendChild(lossTitle);
+    chartsEl.appendChild(lossCanvas);
+
+    const chartData = lossSeries.map((r) => ({
+      label: `${r.metric.method || "?"} / ${r.metric.task || "?"}`,
+      data: r.values.map(([t, v]) => [t, parseFloat(v)] as [number, number]),
+    }));
+    drawChart(lossCanvas, chartData);
+  }
+
+  // Eval scores
+  const evalSeries = await promInstant("sfp_eval_score");
+  if (evalSeries.length > 0) {
+    const evalDiv = document.createElement("div");
+    evalDiv.className = "eval-metrics";
+    const evalTitle = document.createElement("h3");
+    evalTitle.textContent = "Latest Eval Scores";
+    chartsEl.appendChild(evalTitle);
+    chartsEl.appendChild(evalDiv);
+
+    evalDiv.innerHTML = `<table class="eval-table">
+      <thead><tr><th>Method</th><th>Task</th><th>Metric</th><th>Value</th></tr></thead>
+      <tbody>
+        ${evalSeries
+          .map((r) => `<tr>
+            <td>${esc(r.metric.method || "?")}</td>
+            <td>${esc(r.metric.task || "?")}</td>
+            <td>${esc(r.metric.metric || "?")}</td>
+            <td class="num">${parseFloat(r.values?.[0]?.[1] ?? (r as any).value?.[1] ?? "0").toFixed(4)}</td>
+          </tr>`)
+          .join("")}
+      </tbody>
+    </table>`;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Init
+// ---------------------------------------------------------------------------
+
 async function init(): Promise<void> {
+  // Load leaderboard data
   try {
     const res = await fetch(DATA_URL);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -130,14 +305,13 @@ async function init(): Promise<void> {
     renderInfo(data);
     renderTable(data.entries);
     setupSort(data.entries);
-  } catch (err) {
-    console.error("Failed to load leaderboard data:", err);
-    // Show empty state
+  } catch {
     const empty = document.getElementById("empty-state")!;
     empty.style.display = "block";
-    empty.innerHTML =
-      "<p>Loading leaderboard data...</p><p style='color: var(--text-dim); font-size: 0.8rem;'>If this persists, the data may not be available yet.</p>";
   }
+
+  // Load Prometheus charts
+  await loadCharts();
 }
 
 init();
