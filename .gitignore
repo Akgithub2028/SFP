@@ -13,3 +13,5 @@ out/
 wandb/
 .DS_Store
 uv.lock
+web/node_modules/
+web/dist/

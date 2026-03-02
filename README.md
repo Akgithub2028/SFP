@@ -29,9 +29,11 @@ python train.py --method sfp --memory 128
 
 Who can prevent the most forgetting? Submit your method and find out.
 
-| # | Score↑ | Retention↑ | Plasticity↑ | Method | Description | Date | Commit | Contributor |
-|---|--------|------------|-------------|--------|-------------|------|--------|-------------|
-| — | — | — | — | — | *your method here* | — | — | — |
+**[Live leaderboard →](https://sfp-leaderboard.pages.dev)**
+
+| # | Score ↑ | Retention ↑ | Plasticity ↑ | Method | Description | Date | Contributor |
+|---|---------|-------------|--------------|--------|-------------|------|-------------|
+| — | — | — | — | *your method here* | — | — | — |
 
 See [dev/LEADERBOARD.md](dev/LEADERBOARD.md) for how to submit.
 
@@ -120,14 +122,13 @@ For the full research context (hypotheses, prior work, experimental design), see
 
 ## Contributing
 
-The goal of sfp is to be the simplest, most hackable benchmark for continual LLM fine-tuning. There are no giant configuration objects, no model factories, no if-then-else monsters. It's a single, cohesive, minimal codebase.
-
 To add a new method:
-1. Add a function to `methods.py` (or a new file)
-2. Run `bash runs/leaderboard.sh your_method 128`
-3. Open a PR with your method + results
+1. Add a loss function to `methods.py`
+2. Open a PR
+3. A maintainer labels it `benchmark` — Modal spins up a GPU and runs the full benchmark automatically
+4. Scores are posted on your PR as a comment
 
-See [dev/LEADERBOARD.md](dev/LEADERBOARD.md) for details.
+No GPU required on your end. See [dev/LEADERBOARD.md](dev/LEADERBOARD.md) for details.
 
 ## Cite
 

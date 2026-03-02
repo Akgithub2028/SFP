@@ -1,0 +1,12 @@
+{
+  "updated": "2026-03-02",
+  "benchmark": {
+    "model": "Qwen/Qwen2.5-1.5B-Instruct",
+    "tasks": ["math", "code", "ifeval"],
+    "steps_per_task": 1000,
+    "lora_rank": 64,
+    "seeds": [42, 43, 44],
+    "memory": 128
+  },
+  "entries": []
+}
