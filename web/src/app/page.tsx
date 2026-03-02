@@ -39,7 +39,7 @@ export default function Home() {
   }
 
   return (
-    <div className="mx-auto max-w-4xl px-4 py-8 sm:px-6">
+    <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
       {/* Header */}
       <header className="mb-12 text-center">
         <h1 className="text-4xl font-bold tracking-tight">
@@ -64,28 +64,31 @@ export default function Home() {
         </p>
       </section>
 
-      {/* Forgetting Chart */}
-      <section className="mb-8">
-        <h2 className="mb-3 text-lg font-semibold">Forgetting Chart</h2>
-        <ForgettingChart details={details} tasks={benchmark?.tasks ?? []} />
+      {/* Forgetting Chart + Leaderboard — side by side */}
+      <section className="mb-8 grid gap-6 lg:grid-cols-2">
+        <div>
+          <h2 className="mb-3 text-lg font-semibold">How much does your method forget?</h2>
+          <ForgettingChart details={details} tasks={benchmark?.tasks ?? []} />
+        </div>
+        <div className="min-w-0">
+          <div className="mb-3 flex items-baseline justify-between">
+            <h2 className="text-lg font-semibold">Leaderboard</h2>
+            <span className="text-xs" style={{ color: "var(--text-dim)" }}>
+              Score = 0.6 × retention + 0.4 × plasticity
+            </span>
+          </div>
+          <div className="overflow-x-auto">
+            <LeaderboardTable entries={entries} />
+          </div>
+        </div>
       </section>
 
       {/* Benchmark Info */}
       {benchmark && (
         <section className="mb-8">
-          <h2 className="mb-3 text-lg font-semibold">Benchmark</h2>
           <BenchmarkInfo benchmark={benchmark} />
         </section>
       )}
-
-      {/* Leaderboard */}
-      <section className="mb-8">
-        <h2 className="mb-3 text-lg font-semibold">Leaderboard</h2>
-        <p className="mb-3 text-xs" style={{ color: "var(--text-dim)" }}>
-          Score = 0.6 × retention + 0.4 × plasticity. Click column headers to sort.
-        </p>
-        <LeaderboardTable entries={entries} />
-      </section>
 
       {/* Scatter Plot */}
       <section className="mb-8">
