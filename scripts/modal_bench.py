@@ -39,7 +39,7 @@ image = (
     ])
 )
 
-app = modal.App("sfp-benchmark", image=image)
+app = modal.App("sfp-benchmark", image=image, secrets=[modal.Secret.from_name("sfp-push-token")])
 
 PUSHGATEWAY = "57.129.90.22:8080"
 

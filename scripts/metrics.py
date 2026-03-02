@@ -2,7 +2,23 @@
 
 from __future__ import annotations
 
+import os
+from urllib.request import Request, build_opener
+
 from prometheus_client import CollectorRegistry, Gauge, push_to_gateway
+
+
+def _auth_handler(url, method, timeout, headers, data):
+    """Custom handler that injects X-Push-Token for nginx auth."""
+    token = os.environ.get("SFP_PUSH_TOKEN", "")
+    req = Request(url, data=data)
+    for k, v in headers:
+        req.add_header(k, v)
+    if token:
+        req.add_header("X-Push-Token", token)
+    req.get_method = lambda: method
+    resp = build_opener().open(req, timeout=timeout)
+    return resp
 
 
 class MetricsLogger:
@@ -42,7 +58,8 @@ class MetricsLogger:
 
     def _push(self) -> None:
         push_to_gateway(
-            self.gateway, job=self.job, registry=self.registry, grouping_key=self.labels
+            self.gateway, job=self.job, registry=self.registry,
+            grouping_key=self.labels, handler=_auth_handler,
         )
 
     def push_step(self, step: int, task: str, loss: float) -> None:
