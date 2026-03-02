@@ -27,22 +27,24 @@ def get_layer_names(
     if positions is None:
         positions = [0.25, 0.5, 0.75]
 
-    # Detect transformer layer container — unwrap PEFT/LoRA wrappers first
-    base = model
-    for attr in ("base_model", "model", "model"):
-        if hasattr(base, attr):
-            base = getattr(base, attr)
+    # Find transformer layers by scanning named_modules for ".layers.0" or ".h.0"
+    all_names = dict(model.named_modules())
+    prefix = None
+    n_layers = 0
 
-    if hasattr(base, "layers"):
-        prefix = "model.layers"
-        n_layers = len(base.layers)
-    elif hasattr(base, "h"):
-        prefix = "transformer.h"
-        n_layers = len(base.h)
-    else:
+    for name in all_names:
+        if name.endswith(".layers.0"):
+            prefix = name.rsplit(".0", 1)[0]
+            n_layers = sum(1 for n in all_names if n.startswith(prefix + ".") and n[len(prefix)+1:].isdigit())
+            break
+        if name.endswith(".h.0"):
+            prefix = name.rsplit(".0", 1)[0]
+            n_layers = sum(1 for n in all_names if n.startswith(prefix + ".") and n[len(prefix)+1:].isdigit())
+            break
+
+    if prefix is None or n_layers == 0:
         raise ValueError(
-            f"Cannot detect transformer layers. Available attrs: "
-            f"{[n for n, _ in base.named_children()]}"
+            f"Cannot detect transformer layers in model modules."
         )
 
     indices = [int(p * n_layers) for p in positions]
