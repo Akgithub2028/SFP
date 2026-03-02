@@ -33,16 +33,10 @@ image = (
         "scipy",
         "prometheus-client>=0.20",
     )
-    .add_local_dir(ROOT_PATH, remote_path="/root/sfp", condition=lambda pth: (
-        not pth.startswith(".git/")
-        and not pth.startswith(".venv/")
-        and not pth.startswith("__pycache__/")
-        and not pth.startswith("paper/")
-        and not pth.startswith("runs/")
-        and not pth.startswith(".ruff_cache/")
-        and not pth.startswith(".pytest_cache/")
-        and not pth.endswith(".pdf")
-    ))
+    .add_local_dir(ROOT_PATH, remote_path="/root/sfp", ignore=[
+        ".git/", ".venv/", "__pycache__/", "paper/", "runs/",
+        ".ruff_cache/", ".pytest_cache/", "*.pdf",
+    ])
 )
 
 app = modal.App("sfp-benchmark", image=image)

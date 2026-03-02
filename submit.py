@@ -29,7 +29,8 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
-SERVER = "http://sfp.paradigm.xyz:8090"
+_DEFAULT_SERVER = "http://sfp.paradigm.xyz:8090"
+_server = _DEFAULT_SERVER
 
 
 def parse_submission(path: str) -> tuple[str, str, str, str]:
@@ -83,7 +84,7 @@ def parse_submission(path: str) -> tuple[str, str, str, str]:
 
 def post(endpoint: str, data: dict) -> dict:
     req = urllib.request.Request(
-        f"{SERVER}{endpoint}",
+        f"{_server}{endpoint}",
         data=json.dumps(data).encode(),
         headers={"Content-Type": "application/json"},
     )
@@ -92,7 +93,7 @@ def post(endpoint: str, data: dict) -> dict:
 
 
 def get(endpoint: str) -> dict:
-    with urllib.request.urlopen(f"{SERVER}{endpoint}") as resp:
+    with urllib.request.urlopen(f"{_server}{endpoint}") as resp:
         return json.loads(resp.read())
 
 
@@ -102,12 +103,12 @@ def main():
         usage="python submit.py submissions/my_method.py",
     )
     parser.add_argument("file", help="Path to your submission file")
-    parser.add_argument("--server", default=SERVER)
+    parser.add_argument("--server", default=_DEFAULT_SERVER)
     parser.add_argument("--no-wait", action="store_true")
     args = parser.parse_args()
 
-    global SERVER
-    SERVER = args.server
+    global _server
+    _server = args.server
 
     # Parse
     name, code, description, contributor = parse_submission(args.file)
@@ -118,7 +119,7 @@ def main():
     print()
 
     # Submit
-    print(f"Submitting to {SERVER}...")
+    print(f"Submitting to {_server}...")
     try:
         resp = post("/submit", {
             "name": name,
@@ -133,10 +134,10 @@ def main():
 
     sub_id = resp["id"]
     print(f"  Queued: {sub_id}")
-    print(f"  Status: {SERVER}/status/{sub_id}\n")
+    print(f"  Status: {_server}/status/{sub_id}\n")
 
     if args.no_wait:
-        print(f"Poll later: curl {SERVER}/status/{sub_id}")
+        print(f"Poll later: curl {_server}/status/{sub_id}")
         return
 
     # Poll
