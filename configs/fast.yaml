@@ -1,0 +1,16 @@
+# Fast validation config (1 GPU, ~1 hour)
+model: "Qwen/Qwen2.5-1.5B-Instruct"
+tasks: ["math", "code", "ifeval"]
+steps_per_task: 500
+memory: 128
+method: sfp
+batch_size: 8
+lr: 5.0e-5
+lora_rank: 64
+seed: 42
+out_dir: "out/fast"
+mode: fast
+pca_k: 128
+preserve_r: 32
+sfp_lambda: 0.1
+anchor: incremental

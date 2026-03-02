@@ -1,23 +1,15 @@
-# Python
 __pycache__/
 *.py[cod]
 *.egg-info/
 dist/
+build/
 .venv/
-
-# uv
-uv.lock
-
-# Jupyter
-.ipynb_checkpoints/
-
-# LaTeX build artifacts
-paper/build/
-
-# Experiments
+venv/
+out/
+*.bin
+*.pt
+*.npy
+*.pdf
 wandb/
-outputs/
-checkpoints/
-
-# OS
 .DS_Store
+uv.lock

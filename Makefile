@@ -10,11 +10,11 @@ install:
 	uv sync --all-extras
 
 lint:
-	uv run ruff check sfp/ tests/ scripts/
+	uv run ruff check sfp/ tests/ scripts/ tasks/ *.py
 
 fmt:
-	uv run ruff format sfp/ tests/ scripts/
-	uv run ruff check --fix sfp/ tests/ scripts/
+	uv run ruff format sfp/ tests/ scripts/ tasks/ *.py
+	uv run ruff check --fix sfp/ tests/ scripts/ tasks/ *.py
 
 test:
 	uv run pytest

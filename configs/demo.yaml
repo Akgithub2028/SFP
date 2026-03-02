@@ -1,0 +1,12 @@
+# 5-minute demo config (CPU or single GPU)
+model: "HuggingFaceTB/SmolLM2-135M-Instruct"
+tasks: ["math", "code"]
+steps_per_task: 200
+memory: 32
+method: naive
+batch_size: 4
+lr: 1.0e-4
+lora_rank: 16
+seed: 42
+out_dir: "out/demo"
+mode: fast
