@@ -51,6 +51,16 @@ export default function Home() {
     <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
       <Nav />
 
+      {/* ── Intro ── */}
+      <section className="mb-10 text-sm leading-relaxed" style={{ color: "var(--text-dim)" }}>
+        <ul className="list-inside list-disc space-y-1">
+          <li>Fine-tune an LLM on tasks A, B, C in sequence — <strong style={{ color: "var(--text)" }}>how much of A does it forget?</strong></li>
+          <li>Every method below is a single loss function. Same model, same data, same compute.</li>
+          <li>The only variable is your training strategy. <a href="/about" style={{ color: "var(--accent)" }}>Read the research question →</a></li>
+          <li>Write a loss function and <a href="/submit" style={{ color: "var(--accent)" }}>submit it</a> — we run it on a cloud GPU and score it automatically.</li>
+        </ul>
+      </section>
+
       {/* ── Leaderboard (hero) ── */}
       <section className="mb-10">
         <div className="mb-3 flex items-baseline justify-between">

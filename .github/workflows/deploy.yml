@@ -24,7 +24,8 @@ jobs:
       # --- Nginx config ---
       - name: Deploy nginx config
         run: |
-          sudo cp deploy/nginx-sfp.conf /etc/nginx/sites-available/sfp
+          TOKEN=$(cat ~/.sfp-push-token)
+          sed "s/SFP_PUSH_TOKEN_PLACEHOLDER/$TOKEN/" deploy/nginx-sfp.conf | sudo tee /etc/nginx/sites-available/sfp > /dev/null
           sudo ln -sf /etc/nginx/sites-available/sfp /etc/nginx/sites-enabled/sfp
           sudo nginx -t
           sudo systemctl reload nginx
@@ -53,7 +54,7 @@ jobs:
         run: |
           mkdir -p /home/ubuntu/sfp-dashboard
           rm -rf /home/ubuntu/sfp-dashboard/*
-          cp -r web/dist/* /home/ubuntu/sfp-dashboard/
+          cp -r web/dist/client/* /home/ubuntu/sfp-dashboard/
 
       # --- Verify ---
       - name: Health check
