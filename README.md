@@ -123,10 +123,10 @@ For the full research context (hypotheses, prior work, experimental design), see
 ## Contributing
 
 To add a new method:
-1. Add a loss function to `methods.py`
-2. Submit it:
 ```bash
-python submit.py --name my_method --contributor "Your Name"
+cp submissions/_example.py submissions/my_method.py
+# edit your loss function
+python submit.py submissions/my_method.py
 ```
 
 That's it. A GPU spins up in the cloud, runs the full benchmark (3 seeds, ~45 min), and your score appears on the leaderboard automatically. No GPU, no PR, no waiting for review.

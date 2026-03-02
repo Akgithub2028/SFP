@@ -130,14 +130,32 @@ def validate_code(name: str, code: str) -> str | None:
                 return f"Blocked import: {node.module}"
     func_names = {n.name for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)}
     loss_fn = f"{name}_loss" if not name.endswith("_loss") else name
-    if name not in func_names and loss_fn not in func_names:
-        return f"Code must define a function named '{name}' or '{loss_fn}'"
+    has_loss = any(fn.endswith("_loss") for fn in func_names)
+    if name not in func_names and loss_fn not in func_names and not has_loss:
+        return f"Code must define a function ending in '_loss' (e.g. '{loss_fn}')"
     return None
 
 
 # ---------------------------------------------------------------------------
 # Benchmark runner (background thread)
 # ---------------------------------------------------------------------------
+
+
+def _find_loss_fn(code: str, name: str) -> str:
+    """Find the loss function name in submitted code."""
+    tree = ast.parse(code)
+    # Prefer <name>_loss, fall back to <name>
+    loss_fn = f"{name}_loss"
+    defined = {n.name for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)}
+    if loss_fn in defined:
+        return loss_fn
+    if name in defined:
+        return name
+    # Fall back to any function ending in _loss
+    for fn in defined:
+        if fn.endswith("_loss"):
+            return fn
+    return name
 
 
 def run_benchmark(sub_id: str, name: str, code: str) -> None:
@@ -148,14 +166,9 @@ def run_benchmark(sub_id: str, name: str, code: str) -> None:
         subprocess.run(["git", "pull", "--ff-only"], cwd=REPO_DIR, capture_output=True)
 
         original = METHODS_PATH.read_text()
+        fn_name = _find_loss_fn(code, name)
 
-        # Find function name
-        loss_fn = f"{name}_loss" if not name.endswith("_loss") else name
-        tree = ast.parse(code)
-        defined = {n.name for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)}
-        fn_name = loss_fn if loss_fn in defined else name
-
-        # Patch methods.py
+        # Patch methods.py: append code + register
         patched = original.rstrip() + "\n\n# --- submitted ---\n" + code + "\n"
         patched += f'\nMETHODS["{name}"] = {fn_name}\n'
         METHODS_PATH.write_text(patched)
