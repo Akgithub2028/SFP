@@ -33,7 +33,6 @@ app = FastAPI(title="sfp submissions", version="0.1.0")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 REPO_DIR = Path.home() / "github" / "paradigmxyz" / "sfp"
-METHODS_PATH = REPO_DIR / "methods.py"
 DB_PATH = Path.home() / "sfp.db"
 
 BLOCKED_IMPORTS = {
@@ -141,38 +140,6 @@ def validate_code(name: str, code: str) -> str | None:
 # ---------------------------------------------------------------------------
 
 
-def _find_setup_key(code: str) -> str | None:
-    """Extract SETUP = "..." from submitted code."""
-    tree = ast.parse(code)
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Assign):
-            for target in node.targets:
-                if (isinstance(target, ast.Name) and target.id == "SETUP"
-                        and isinstance(node.value, ast.Constant)
-                        and isinstance(node.value.value, str)):
-                    valid = {"none", "distill", "hidden_distill", "orthogonal", "sfp"}
-                    if node.value.value in valid:
-                        return node.value.value
-    return None
-
-
-def _find_loss_fn(code: str, name: str) -> str:
-    """Find the loss function name in submitted code."""
-    tree = ast.parse(code)
-    # Prefer <name>_loss, fall back to <name>
-    loss_fn = f"{name}_loss"
-    defined = {n.name for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)}
-    if loss_fn in defined:
-        return loss_fn
-    if name in defined:
-        return name
-    # Fall back to any function ending in _loss
-    for fn in defined:
-        if fn.endswith("_loss"):
-            return fn
-    return name
-
-
 def run_benchmark(sub_id: str, name: str, code: str) -> None:
     try:
         with get_db() as db:
@@ -180,29 +147,21 @@ def run_benchmark(sub_id: str, name: str, code: str) -> None:
 
         subprocess.run(["git", "pull", "--ff-only"], cwd=REPO_DIR, capture_output=True)
 
-        original = METHODS_PATH.read_text()
-        fn_name = _find_loss_fn(code, name)
-
-        # Extract SETUP declaration if present
-        setup_key = _find_setup_key(code)
-
-        # Patch methods.py: append code + register
-        patched = original.rstrip() + "\n\n# --- submitted ---\n" + code + "\n"
-        patched += f'\nMETHODS["{name}"] = {fn_name}\n'
-        if setup_key:
-            patched += f'{fn_name}.SETUP = "{setup_key}"\n'
-        METHODS_PATH.write_text(patched)
+        # Write submitted code to a temp file (Modal uploads repo + this file)
+        code_file = REPO_DIR / f".submitted_{sub_id}.py"
+        code_file.write_text(code)
 
         try:
             result = subprocess.run(
                 [
                     "modal", "run", "scripts/modal_bench.py",
                     "--method", name, "--memory", "128", "--preset", "standard",
+                    "--code", code,
                 ],
                 capture_output=True, text=True, cwd=str(REPO_DIR), timeout=5400,
             )
         finally:
-            METHODS_PATH.write_text(original)
+            code_file.unlink(missing_ok=True)
 
         if result.returncode != 0:
             with get_db() as db:
@@ -241,7 +200,6 @@ def run_benchmark(sub_id: str, name: str, code: str) -> None:
             ))
 
     except Exception as e:
-        subprocess.run(["git", "checkout", "methods.py"], cwd=REPO_DIR, capture_output=True)
         with get_db() as db:
             db.execute(
                 "UPDATE submissions SET status='failed', error=?, completed_at=? WHERE id=?",

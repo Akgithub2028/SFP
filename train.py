@@ -57,6 +57,7 @@ config = {
     "max_length": 512,
     "pushgateway": "",
     "eval_every": 0,
+    "method_file": "",
 }
 
 # ---------------------------------------------------------------------------
@@ -90,6 +91,33 @@ def parse_config() -> dict:
             cfg[key] = cli_val
 
     return cfg
+
+
+def load_method_file(path: str, method_name: str) -> None:
+    """Dynamically load a method from an external .py file into METHODS."""
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("submitted_method", path)
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+
+    # Find the loss function (ending in _loss)
+    loss_fn = None
+    for name in dir(mod):
+        obj = getattr(mod, name)
+        if callable(obj) and name.endswith("_loss"):
+            loss_fn = obj
+            break
+
+    if loss_fn is None:
+        raise ValueError(f"No function ending in '_loss' found in {path}")
+
+    # Apply SETUP attribute if declared in the module
+    setup_key = getattr(mod, "SETUP", None)
+    if setup_key:
+        loss_fn.SETUP = setup_key
+
+    METHODS[method_name] = loss_fn
+    print(f"Loaded method '{method_name}' from {path} (fn={loss_fn.__name__}, SETUP={getattr(loss_fn, 'SETUP', 'none')})")
 
 
 def print_banner(cfg: dict) -> None:
@@ -139,6 +167,11 @@ def metrics_init(cfg: dict):
 
 if __name__ == "__main__":
     cfg = parse_config()
+
+    # Load external method file if specified
+    if cfg["method_file"]:
+        load_method_file(cfg["method_file"], cfg["method"])
+
     print_banner(cfg)
 
     # Seeds

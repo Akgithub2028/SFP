@@ -95,20 +95,22 @@ PRESETS = {
 @app.function(gpu="T4", timeout=7200)
 def run_seed_t4(
     method: str, memory: int, seed: int, steps: int, model_name: str, tasks: str,
+    code: str = "",
 ) -> dict:
     """Run benchmark on T4."""
-    return _run(method, memory, seed, steps, model_name, tasks)
+    return _run(method, memory, seed, steps, model_name, tasks, code)
 
 
 @app.function(gpu="A10G", timeout=7200)
 def run_seed_a10g(
     method: str, memory: int, seed: int, steps: int, model_name: str, tasks: str,
+    code: str = "",
 ) -> dict:
     """Run benchmark on A10G."""
-    return _run(method, memory, seed, steps, model_name, tasks)
+    return _run(method, memory, seed, steps, model_name, tasks, code)
 
 
-def _run(method: str, memory: int, seed: int, steps: int, model_name: str, tasks: str) -> dict:
+def _run(method: str, memory: int, seed: int, steps: int, model_name: str, tasks: str, code: str = "") -> dict:
     """Shared training logic. Pushes metrics to Prometheus on dev-georgios."""
     import json
     import subprocess
@@ -129,6 +131,13 @@ def _run(method: str, memory: int, seed: int, steps: int, model_name: str, tasks
         "--pushgateway", PUSHGATEWAY,
     ]
 
+    # If code is provided, write to a temp file and pass --method-file
+    if code:
+        method_file = f"/tmp/method_{method}.py"
+        with open(method_file, "w") as f:
+            f.write(code)
+        cmd.extend(["--method_file", method_file])
+
     result = subprocess.run(cmd, capture_output=True, text=True, cwd="/root/sfp")
     print(result.stdout[-3000:] if len(result.stdout) > 3000 else result.stdout)
     if result.returncode != 0:
@@ -141,7 +150,7 @@ def _run(method: str, memory: int, seed: int, steps: int, model_name: str, tasks
 
 
 @app.local_entrypoint()
-def main(method: str = "naive", memory: int = 128, preset: str = "quick"):
+def main(method: str = "naive", memory: int = 128, preset: str = "quick", code: str = ""):
     """Run benchmark with cost-aware presets."""
     import json
     import statistics
@@ -171,6 +180,8 @@ def main(method: str = "naive", memory: int = 128, preset: str = "quick"):
     print(f"  Tasks      : {tasks}")
     print(f"  Steps/task : {steps}")
     print(f"  Seeds      : {seeds}")
+    if code:
+        print(f"  Code       : {len(code)} bytes (submitted)")
     print("=" * 60)
     print()
 
@@ -185,6 +196,7 @@ def main(method: str = "naive", memory: int = 128, preset: str = "quick"):
         [steps] * len(seeds),
         [model_name] * len(seeds),
         [tasks] * len(seeds),
+        [code] * len(seeds),
     ))
 
     # Aggregate

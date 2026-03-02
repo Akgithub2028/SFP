@@ -74,6 +74,9 @@ export default function Home() {
         </p>
       </section>
 
+      {/* Live Training */}
+      <PrometheusCharts />
+
       {/* Forgetting Chart + Leaderboard — side by side */}
       <section className="mb-8 grid gap-6 lg:grid-cols-2">
         <div>
@@ -105,8 +108,6 @@ export default function Home() {
         <h2 className="mb-3 text-lg font-semibold">Retention vs Plasticity</h2>
         <ScatterPlot entries={entries} />
       </section>
-
-      <PrometheusCharts />
 
       {/* How It Works */}
       <section className="mb-8">
