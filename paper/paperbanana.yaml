@@ -1,0 +1,11 @@
+# PaperBanana configuration for figure generation
+# See: https://github.com/dwzhu-pku/PaperBanana
+
+defaults:
+  model_name: ""          # e.g. gemini-2.5-pro
+  image_model_name: ""    # e.g. imagen-4
+
+api_keys:
+  google_api_key: ""      # fill in or set GOOGLE_API_KEY env var
+
+output_dir: figures/generated

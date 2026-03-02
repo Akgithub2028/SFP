@@ -1,0 +1,36 @@
+name: Build Paper
+
+on:
+  push:
+    paths:
+      - "paper/**"
+      - ".github/workflows/paper.yml"
+  pull_request:
+    paths:
+      - "paper/**"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build paper (Docker)
+        run: |
+          docker build -t sfp-latex paper/
+          docker run --rm -v ${{ github.workspace }}/paper:/paper sfp-latex
+          cp paper/build/main.pdf sfp.pdf
+
+      - name: Commit sfp.pdf
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add sfp.pdf
+          git diff --cached --quiet && echo "No changes" || git commit -m "build: update sfp.pdf" && git push
+
+      - name: Upload PDF artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sfp.pdf
+          path: sfp.pdf

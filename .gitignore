@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+.venv/
+
+# uv
+uv.lock
+
+# Jupyter
+.ipynb_checkpoints/
+
+# LaTeX build artifacts
+paper/build/
+
+# Experiments
+wandb/
+outputs/
+checkpoints/
+
+# OS
+.DS_Store
