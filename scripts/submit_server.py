@@ -147,21 +147,14 @@ def run_benchmark(sub_id: str, name: str, code: str) -> None:
 
         subprocess.run(["git", "pull", "--ff-only"], cwd=REPO_DIR, capture_output=True)
 
-        # Write submitted code to a temp file (Modal uploads repo + this file)
-        code_file = REPO_DIR / f".submitted_{sub_id}.py"
-        code_file.write_text(code)
-
-        try:
-            result = subprocess.run(
-                [
-                    "modal", "run", "scripts/modal_bench.py",
-                    "--method", name, "--memory", "128", "--preset", "standard",
-                    "--code", code,
-                ],
-                capture_output=True, text=True, cwd=str(REPO_DIR), timeout=5400,
-            )
-        finally:
-            code_file.unlink(missing_ok=True)
+        result = subprocess.run(
+            [
+                "modal", "run", "scripts/modal_bench.py",
+                "--method", name, "--memory", "128", "--preset", "standard",
+                "--code", code,
+            ],
+            capture_output=True, text=True, cwd=str(REPO_DIR), timeout=5400,
+        )
 
         if result.returncode != 0:
             with get_db() as db:
