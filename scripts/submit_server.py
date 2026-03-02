@@ -291,6 +291,16 @@ def status(sub_id: str):
     return dict(row)
 
 
+BENCHMARK = {
+    "model": "Qwen/Qwen2.5-1.5B-Instruct",
+    "tasks": ["math", "code", "ifeval"],
+    "steps_per_task": 1000,
+    "lora_rank": 64,
+    "seeds": [42, 43, 44],
+    "memory": 128,
+}
+
+
 @app.get("/leaderboard")
 def leaderboard():
     """Best submission per method, ordered by score."""
@@ -308,7 +318,10 @@ def leaderboard():
             GROUP BY method
             ORDER BY score_mean DESC
         """).fetchall()
-    return {"entries": [dict(r) for r in rows]}
+    return {
+        "benchmark": BENCHMARK,
+        "entries": [dict(r) for r in rows],
+    }
 
 
 @app.get("/submissions")

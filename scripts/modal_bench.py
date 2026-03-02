@@ -31,6 +31,7 @@ image = (
         "tqdm>=4.66",
         "pyyaml>=6.0",
         "scipy",
+        "prometheus-client>=0.20",
     )
     .add_local_dir(ROOT_PATH, remote_path="/root/sfp", condition=lambda pth: (
         not pth.startswith(".git/")
@@ -45,6 +46,8 @@ image = (
 )
 
 app = modal.App("sfp-benchmark", image=image)
+
+PUSHGATEWAY = "57.129.90.22:8080"
 
 # ---------------------------------------------------------------------------
 # Presets: name -> (gpu, seeds, steps_per_task, model, tasks, est_cost)
@@ -112,7 +115,7 @@ def run_seed_a10g(
 
 
 def _run(method: str, memory: int, seed: int, steps: int, model_name: str, tasks: str) -> dict:
-    """Shared training logic."""
+    """Shared training logic. Pushes metrics to Prometheus on dev-georgios."""
     import json
     import subprocess
 
@@ -129,6 +132,7 @@ def _run(method: str, memory: int, seed: int, steps: int, model_name: str, tasks
         "--lora_rank", "64",
         "--out_dir", out_dir,
         "--mode", "fast",
+        "--pushgateway", PUSHGATEWAY,
     ]
 
     result = subprocess.run(cmd, capture_output=True, text=True, cwd="/root/sfp")

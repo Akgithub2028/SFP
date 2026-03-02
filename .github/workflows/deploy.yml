@@ -9,7 +9,6 @@ on:
       - "scripts/metrics.py"
       - "deploy/**"
       - ".github/workflows/deploy.yml"
-      - "leaderboard.json"
   workflow_dispatch:
 
 jobs:

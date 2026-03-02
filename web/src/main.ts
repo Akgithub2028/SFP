@@ -1,9 +1,7 @@
 /**
- * sfp leaderboard — fetch leaderboard from GitHub, loss curves from Prometheus.
+ * sfp leaderboard — fetch from SQLite API on dev-georgios, loss curves from Prometheus.
  */
 
-const DATA_URL =
-  "https://raw.githubusercontent.com/paradigmxyz/sfp/master/leaderboard.json";
 const API_BASE = location.port === "5173" ? "http://localhost:8090" : "";
 
 // Prometheus is proxied through nginx at /api/v1/
@@ -297,44 +295,22 @@ async function loadCharts(): Promise<void> {
 // Init
 // ---------------------------------------------------------------------------
 
-async function fetchLeaderboard(): Promise<Entry[]> {
-  // Try API first (has latest data from SQLite)
+async function fetchLeaderboard(): Promise<LeaderboardData | null> {
   try {
     const res = await fetch(`${API_BASE}/leaderboard`);
-    if (res.ok) {
-      const data = await res.json();
-      return data.entries ?? [];
-    }
-  } catch { /* fall through */ }
-
-  // Fall back to static JSON from GitHub
-  try {
-    const res = await fetch(DATA_URL);
-    if (res.ok) {
-      const data = await res.json();
-      return data.entries ?? [];
-    }
-  } catch { /* fall through */ }
-
-  return [];
+    if (res.ok) return await res.json();
+  } catch { /* ignore */ }
+  return null;
 }
 
 async function init(): Promise<void> {
-  // Load leaderboard info (static)
-  try {
-    const res = await fetch(DATA_URL);
-    if (res.ok) {
-      const data: LeaderboardData = await res.json();
-      renderInfo(data);
-    }
-  } catch { /* ignore */ }
+  const data = await fetchLeaderboard();
+  const entries = data?.entries ?? [];
 
-  // Load entries (API -> GitHub fallback)
-  const entries = await fetchLeaderboard();
+  if (data?.benchmark) renderInfo(data);
   renderTable(entries);
   setupSort(entries);
 
-  // Load Prometheus charts
   await loadCharts();
 }
 
