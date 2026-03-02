@@ -14,8 +14,15 @@ export default function ForgettingChart({
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
-    if (!canvasRef.current || details.length === 0) return;
-    drawForgettingChart(canvasRef.current, details, tasks);
+    const canvas = canvasRef.current;
+    if (!canvas || details.length === 0) return;
+
+    const draw = () => drawForgettingChart(canvas, details, tasks);
+    draw();
+
+    const obs = new ResizeObserver(draw);
+    obs.observe(canvas);
+    return () => obs.disconnect();
   }, [details, tasks]);
 
   if (details.length === 0) {

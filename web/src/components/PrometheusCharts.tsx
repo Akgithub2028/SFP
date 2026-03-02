@@ -26,7 +26,7 @@ export default function PrometheusCharts() {
       const start = (now - 86400).toString();
       const end = now.toString();
       const series = await promRange(
-        "sfp_training_loss",
+        "sfp_train_loss",
         start,
         end,
         "60"
@@ -45,37 +45,14 @@ export default function PrometheusCharts() {
     drawLossChart(canvasRef.current, lossSeries);
   }, [lossSeries]);
 
-  if (available === null) {
-    return (
-      <div className="text-sm" style={{ color: "var(--text-dim)" }}>
-        Checking Prometheus...
-      </div>
-    );
-  }
-
-  if (!available) {
-    return (
-      <div
-        className="rounded-md p-4 text-center text-sm"
-        style={{ border: "1px solid var(--border)", color: "var(--text-dim)" }}
-      >
-        Prometheus not available — live training charts require a running Prometheus instance.
-      </div>
-    );
+  if (available === null || !available || lossSeries.length === 0) {
+    return null;
   }
 
   return (
-    <div>
-      {lossSeries.length > 0 ? (
-        <canvas ref={canvasRef} className="chart chart-tall" />
-      ) : (
-        <div
-          className="chart flex items-center justify-center text-sm"
-          style={{ color: "var(--text-dim)" }}
-        >
-          No training loss data in the last 24h.
-        </div>
-      )}
-    </div>
+    <section className="mb-8">
+      <h2 className="mb-3 text-lg font-semibold">Live Training</h2>
+      <canvas ref={canvasRef} className="chart chart-tall" />
+    </section>
   );
 }

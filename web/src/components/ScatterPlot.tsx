@@ -8,8 +8,15 @@ export default function ScatterPlot({ entries }: { entries: Entry[] }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
-    if (!canvasRef.current || entries.length === 0) return;
-    drawScatter(canvasRef.current, entries);
+    const canvas = canvasRef.current;
+    if (!canvas || entries.length === 0) return;
+
+    const draw = () => drawScatter(canvas, entries);
+    draw();
+
+    const obs = new ResizeObserver(draw);
+    obs.observe(canvas);
+    return () => obs.disconnect();
   }, [entries]);
 
   if (entries.length === 0) {

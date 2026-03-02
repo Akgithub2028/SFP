@@ -38,7 +38,7 @@ interface Padding {
 }
 
 function defaultPad(): Padding {
-  return { top: 30, right: 20, bottom: 40, left: 55 };
+  return { top: 30, right: 80, bottom: 40, left: 55 };
 }
 
 export function drawGrid(
@@ -51,11 +51,16 @@ export function drawGrid(
   const pw = cw - pad.left - pad.right;
   const ph = ch - pad.top - pad.bottom;
   const yMin = yLabels[0];
-  const yMax = yLabels[yLabels.length - 1];
+  let yMax = yLabels[yLabels.length - 1];
+  if (yMax <= yMin) yMax = yMin + 0.1;
 
-  ctx.strokeStyle = "#2a2a2a";
+  const styles = getComputedStyle(document.documentElement);
+  const borderColor = styles.getPropertyValue('--border').trim() || '#2a2a2a';
+  const dimColor = styles.getPropertyValue('--text-dim').trim() || '#888';
+
+  ctx.strokeStyle = borderColor;
   ctx.lineWidth = 1;
-  ctx.fillStyle = "#888";
+  ctx.fillStyle = dimColor;
   ctx.textAlign = "right";
   ctx.textBaseline = "middle";
 
@@ -82,18 +87,22 @@ export function drawForgettingChart(
   const pw = cw - pad.left - pad.right;
   const ph = ch - pad.top - pad.bottom;
 
+  const styles = getComputedStyle(document.documentElement);
+  const dimColor = styles.getPropertyValue('--text-dim').trim() || '#888';
+
   // Collect all accuracy values to determine y range
   const allVals: number[] = [];
   for (const entry of details) {
     if (!entry.per_seed?.length) continue;
-    const seed = entry.per_seed[0];
-    if (!seed.history?.length) continue;
-    for (const stage of seed.history) {
-      for (const task of tasks) {
-        const metrics = stage[task];
-        if (!metrics) continue;
-        for (const v of Object.values(metrics)) {
-          allVals.push(v);
+    for (const seed of entry.per_seed) {
+      if (!seed.history?.length) continue;
+      for (const stage of seed.history) {
+        for (const task of tasks) {
+          const metrics = stage[task];
+          if (!metrics) continue;
+          for (const v of Object.values(metrics)) {
+            allVals.push(v);
+          }
         }
       }
     }
@@ -114,7 +123,7 @@ export function drawForgettingChart(
 
   // X labels (tasks trained sequentially)
   const numStages = details[0]?.per_seed?.[0]?.history?.length ?? tasks.length;
-  ctx.fillStyle = "#888";
+  ctx.fillStyle = dimColor;
   ctx.textAlign = "center";
   ctx.textBaseline = "top";
   for (let i = 0; i < numStages; i++) {
@@ -127,12 +136,10 @@ export function drawForgettingChart(
   for (let mi = 0; mi < details.length; mi++) {
     const entry = details[mi];
     if (!entry.per_seed?.length) continue;
-    const seed = entry.per_seed[0];
-    if (!seed.history?.length) continue;
 
     const color = COLORS[mi % COLORS.length];
 
-    // For each task, draw its accuracy across stages
+    // For each task, draw its accuracy across stages (averaged across seeds)
     for (let ti = 0; ti < tasks.length; ti++) {
       const task = tasks[ti];
       const dash = DASHES[ti % DASHES.length];
@@ -143,10 +150,16 @@ export function drawForgettingChart(
       ctx.beginPath();
 
       let started = false;
-      for (let si = 0; si < seed.history.length; si++) {
-        const metrics = seed.history[si]?.[task];
-        if (!metrics) continue;
-        const val = Object.values(metrics)[0] ?? 0;
+      for (let si = 0; si < numStages; si++) {
+        let sum = 0, count = 0;
+        for (const seed of entry.per_seed) {
+          const metrics = seed.history?.[si]?.[task];
+          if (!metrics) continue;
+          sum += Object.values(metrics)[0] ?? 0;
+          count++;
+        }
+        if (count === 0) continue;
+        const val = sum / count;
         const x = pad.left + (si / Math.max(1, numStages - 1)) * pw;
         const y = pad.top + ph - ((val - yMin) / (yMax - yMin)) * ph;
         if (!started) {
@@ -160,12 +173,18 @@ export function drawForgettingChart(
       ctx.setLineDash([]);
     }
 
-    // Method label at right
-    const lastStage = seed.history[seed.history.length - 1];
+    // Method label at right (averaged across seeds)
     const lastTask = tasks[tasks.length - 1];
-    const lastMetrics = lastStage?.[lastTask];
-    if (lastMetrics) {
-      const lastVal = Object.values(lastMetrics)[0] ?? 0;
+    let sum = 0, count = 0;
+    for (const seed of entry.per_seed) {
+      const lastStage = seed.history?.[seed.history.length - 1];
+      const lastMetrics = lastStage?.[lastTask];
+      if (!lastMetrics) continue;
+      sum += Object.values(lastMetrics)[0] ?? 0;
+      count++;
+    }
+    if (count > 0) {
+      const lastVal = sum / count;
       const ly =
         pad.top + ph - ((lastVal - yMin) / (yMax - yMin)) * ph;
       ctx.fillStyle = color;
@@ -176,7 +195,7 @@ export function drawForgettingChart(
   }
 
   // Title
-  ctx.fillStyle = "#888";
+  ctx.fillStyle = dimColor;
   ctx.textAlign = "center";
   ctx.textBaseline = "top";
   ctx.fillText("Task accuracy over sequential training", cw / 2, 8);
@@ -193,6 +212,9 @@ export function drawScatter(
   const pad = { top: 30, right: 80, bottom: 45, left: 55 };
   const pw = cw - pad.left - pad.right;
   const ph = ch - pad.top - pad.bottom;
+
+  const styles = getComputedStyle(document.documentElement);
+  const dimColor = styles.getPropertyValue('--text-dim').trim() || '#888';
 
   if (entries.length === 0) return;
 
@@ -212,7 +234,7 @@ export function drawScatter(
   drawGrid(ctx, pad, cw, ch, yLabels);
 
   // X axis labels
-  ctx.fillStyle = "#888";
+  ctx.fillStyle = dimColor;
   ctx.textAlign = "center";
   ctx.textBaseline = "top";
   const xLabels: number[] = [];
@@ -225,7 +247,7 @@ export function drawScatter(
   }
 
   // Axis labels
-  ctx.fillStyle = "#888";
+  ctx.fillStyle = dimColor;
   ctx.textAlign = "center";
   ctx.fillText("Plasticity", cw / 2, ch - 5);
   ctx.save();
@@ -255,7 +277,7 @@ export function drawScatter(
   }
 
   // Title
-  ctx.fillStyle = "#888";
+  ctx.fillStyle = dimColor;
   ctx.textAlign = "center";
   ctx.textBaseline = "top";
   ctx.fillText("Retention vs Plasticity", cw / 2, 8);
@@ -272,6 +294,9 @@ export function drawLossChart(
   const pad = defaultPad();
   const pw = cw - pad.left - pad.right;
   const ph = ch - pad.top - pad.bottom;
+
+  const styles = getComputedStyle(document.documentElement);
+  const dimColor = styles.getPropertyValue('--text-dim').trim() || '#888';
 
   if (series.length === 0) return;
 
@@ -307,7 +332,7 @@ export function drawLossChart(
   drawGrid(ctx, pad, cw, ch, yLabels);
 
   // X axis time labels
-  ctx.fillStyle = "#888";
+  ctx.fillStyle = dimColor;
   ctx.textAlign = "center";
   ctx.textBaseline = "top";
   const tRange = tMax - tMin || 1;
@@ -361,7 +386,7 @@ export function drawLossChart(
   }
 
   // Title
-  ctx.fillStyle = "#888";
+  ctx.fillStyle = dimColor;
   ctx.textAlign = "center";
   ctx.textBaseline = "top";
   ctx.fillText("Training Loss (24h)", cw / 2, 8);

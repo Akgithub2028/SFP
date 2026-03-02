@@ -14,6 +14,7 @@ export default function Home() {
   const [entries, setEntries] = useState<Entry[]>([]);
   const [details, setDetails] = useState<DetailEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
 
   useEffect(() => {
     async function load() {
@@ -25,6 +26,7 @@ export default function Home() {
       if (det) {
         setDetails(det.entries);
       }
+      if (!lb && !det) setError(true);
       setLoading(false);
     }
     load();
@@ -34,6 +36,14 @@ export default function Home() {
     return (
       <div className="flex min-h-screen items-center justify-center" style={{ color: "var(--text-dim)" }}>
         Loading...
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex min-h-screen items-center justify-center" style={{ color: "var(--text-dim)" }}>
+        Failed to load leaderboard data.
       </div>
     );
   }
@@ -96,11 +106,7 @@ export default function Home() {
         <ScatterPlot entries={entries} />
       </section>
 
-      {/* Prometheus Charts */}
-      <section className="mb-8">
-        <h2 className="mb-3 text-lg font-semibold">Live Training</h2>
-        <PrometheusCharts />
-      </section>
+      <PrometheusCharts />
 
       {/* How It Works */}
       <section className="mb-8">

@@ -9,7 +9,10 @@ const MEDALS = ["🥇", "🥈", "🥉"];
 
 function fmt(v: number, std?: number): string {
   const s = v.toFixed(4);
-  return std != null && std > 0 ? `${s} ±${std.toFixed(4)}` : s;
+  if (std != null && std > 0 && std.toFixed(4) !== "0.0000") {
+    return `${s} ±${std.toFixed(4)}`;
+  }
+  return s;
 }
 
 export default function LeaderboardTable({ entries }: { entries: Entry[] }) {
