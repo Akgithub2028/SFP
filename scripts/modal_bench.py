@@ -1,16 +1,14 @@
 """
 scripts/modal_bench.py — Run the leaderboard benchmark on Modal (GPU).
 
-Called from GitHub Actions on PR submissions. Runs the fixed benchmark:
-  - Model: Qwen/Qwen2.5-1.5B-Instruct
-  - Tasks: math -> code -> ifeval
-  - Steps: 1000 per task
-  - Seeds: 42, 43, 44
-  - Memory: 128
+Presets (pick one):
+    modal run scripts/modal_bench.py --preset smoke     # ~$0.50, 2 min  — sanity check
+    modal run scripts/modal_bench.py --preset quick      # ~$2,   10 min — iterate fast
+    modal run scripts/modal_bench.py --preset standard   # ~$8,   45 min — official benchmark
+    modal run scripts/modal_bench.py --preset full        # ~$15,  90 min — publication-grade
 
-Usage:
-    modal run scripts/modal_bench.py --method my_method
-    modal run scripts/modal_bench.py --method sfp --memory 512
+Custom:
+    modal run scripts/modal_bench.py --method sfp --memory 128 --preset quick
 """
 
 from __future__ import annotations
@@ -48,12 +46,73 @@ image = (
 
 app = modal.App("sfp-benchmark", image=image)
 
-SEEDS = [42, 43, 44]
+# ---------------------------------------------------------------------------
+# Presets: name -> (gpu, seeds, steps_per_task, model, tasks, est_cost)
+# Costs estimated at: T4 ~$0.59/hr, L4 ~$0.80/hr, A10G ~$1.10/hr
+# ---------------------------------------------------------------------------
+
+PRESETS = {
+    "smoke": {
+        "gpu": "T4",
+        "seeds": [42],
+        "steps_per_task": 50,
+        "model": "HuggingFaceTB/SmolLM2-135M-Instruct",
+        "tasks": "math,code",
+        "est_cost": "$0.50",
+        "est_time": "~2 min",
+        "desc": "Sanity check. Tiny model, 1 seed, 50 steps. Just verifies your method runs.",
+    },
+    "quick": {
+        "gpu": "T4",
+        "seeds": [42],
+        "steps_per_task": 200,
+        "model": "Qwen/Qwen2.5-1.5B-Instruct",
+        "tasks": "math,code,ifeval",
+        "est_cost": "$2",
+        "est_time": "~10 min",
+        "desc": "Fast iteration. Real model, 1 seed, 200 steps. Good for development.",
+    },
+    "standard": {
+        "gpu": "A10G",
+        "seeds": [42, 43, 44],
+        "steps_per_task": 1000,
+        "model": "Qwen/Qwen2.5-1.5B-Instruct",
+        "tasks": "math,code,ifeval",
+        "est_cost": "$8",
+        "est_time": "~45 min",
+        "desc": "Official leaderboard benchmark. 3 seeds, 1000 steps. Used for PR scoring.",
+    },
+    "full": {
+        "gpu": "A10G",
+        "seeds": [42, 43, 44],
+        "steps_per_task": 2000,
+        "model": "Qwen/Qwen2.5-1.5B-Instruct",
+        "tasks": "math,code,ifeval,safety",
+        "est_cost": "$15",
+        "est_time": "~90 min",
+        "desc": "Extended benchmark. 4 tasks, 2000 steps. For paper-grade results.",
+    },
+}
+
+
+@app.function(gpu="T4", timeout=7200)
+def run_seed_t4(
+    method: str, memory: int, seed: int, steps: int, model_name: str, tasks: str,
+) -> dict:
+    """Run benchmark on T4."""
+    return _run(method, memory, seed, steps, model_name, tasks)
 
 
 @app.function(gpu="A10G", timeout=7200)
-def run_seed(method: str, memory: int, seed: int) -> dict:
-    """Run the benchmark for a single seed. Returns results dict."""
+def run_seed_a10g(
+    method: str, memory: int, seed: int, steps: int, model_name: str, tasks: str,
+) -> dict:
+    """Run benchmark on A10G."""
+    return _run(method, memory, seed, steps, model_name, tasks)
+
+
+def _run(method: str, memory: int, seed: int, steps: int, model_name: str, tasks: str) -> dict:
+    """Shared training logic."""
     import json
     import subprocess
 
@@ -64,18 +123,18 @@ def run_seed(method: str, memory: int, seed: int) -> dict:
         "--method", method,
         "--memory", str(memory),
         "--seed", str(seed),
-        "--model", "Qwen/Qwen2.5-1.5B-Instruct",
-        "--tasks", "math,code,ifeval",
-        "--steps_per_task", "1000",
+        "--model", model_name,
+        "--tasks", tasks,
+        "--steps_per_task", str(steps),
         "--lora_rank", "64",
         "--out_dir", out_dir,
         "--mode", "fast",
     ]
 
     result = subprocess.run(cmd, capture_output=True, text=True, cwd="/root/sfp")
-    print(result.stdout[-2000:] if len(result.stdout) > 2000 else result.stdout)
+    print(result.stdout[-3000:] if len(result.stdout) > 3000 else result.stdout)
     if result.returncode != 0:
-        print("STDERR:", result.stderr[-2000:])
+        print("STDERR:", result.stderr[-3000:])
         raise RuntimeError(f"Training failed (seed={seed}): {result.stderr[-500:]}")
 
     results_path = f"{out_dir}/results.json"
@@ -84,21 +143,50 @@ def run_seed(method: str, memory: int, seed: int) -> dict:
 
 
 @app.local_entrypoint()
-def main(method: str = "naive", memory: int = 128):
-    """Run benchmark across 3 seeds and aggregate results."""
+def main(method: str = "naive", memory: int = 128, preset: str = "quick"):
+    """Run benchmark with cost-aware presets."""
     import json
     import statistics
 
-    print("=== SFP Leaderboard Benchmark ===")
-    print(f"Method: {method}, Memory: {memory}")
-    print(f"Seeds: {SEEDS}")
+    if preset not in PRESETS:
+        print(f"Unknown preset: {preset}")
+        print(f"Available: {', '.join(PRESETS.keys())}")
+        raise SystemExit(1)
+
+    p = PRESETS[preset]
+    seeds = p["seeds"]
+    steps = p["steps_per_task"]
+    model_name = p["model"]
+    tasks = p["tasks"]
+    gpu = p["gpu"]
+
+    print("=" * 60)
+    print("  SFP Leaderboard Benchmark")
+    print("=" * 60)
+    print(f"  Preset     : {preset} — {p['desc']}")
+    print(f"  Est. cost  : {p['est_cost']}")
+    print(f"  Est. time  : {p['est_time']}")
+    print(f"  GPU        : {gpu}")
+    print(f"  Method     : {method}")
+    print(f"  Memory     : {memory}")
+    print(f"  Model      : {model_name}")
+    print(f"  Tasks      : {tasks}")
+    print(f"  Steps/task : {steps}")
+    print(f"  Seeds      : {seeds}")
+    print("=" * 60)
     print()
 
+    # Pick the right GPU function
+    run_fn = run_seed_a10g if gpu == "A10G" else run_seed_t4
+
     # Run all seeds in parallel on Modal
-    results = list(run_seed.map(
-        [method] * len(SEEDS),
-        [memory] * len(SEEDS),
-        SEEDS,
+    results = list(run_fn.map(
+        [method] * len(seeds),
+        [memory] * len(seeds),
+        seeds,
+        [steps] * len(seeds),
+        [model_name] * len(seeds),
+        [tasks] * len(seeds),
     ))
 
     # Aggregate
@@ -114,19 +202,24 @@ def main(method: str = "naive", memory: int = 128):
     sco_std = statistics.stdev(scores) if len(scores) > 1 else 0.0
 
     print(f"\n{'=' * 60}")
-    print("  LEADERBOARD RESULTS")
+    print("  RESULTS")
     print(f"{'=' * 60}")
+    print(f"  Preset     : {preset}")
     print(f"  Method     : {method}")
     print(f"  Memory     : {memory}")
     print(f"  Retention  : {ret_mean:.4f} +/- {ret_std:.4f}")
     print(f"  Plasticity : {pla_mean:.4f} +/- {pla_std:.4f}")
     print(f"  Score      : {sco_mean:.4f} +/- {sco_std:.4f}")
+    if preset != "standard":
+        print(f"\n  NOTE: This is a '{preset}' run. For official scores, use --preset standard")
     print(f"{'=' * 60}\n")
 
-    # Write machine-readable output for CI
+    # Write machine-readable output
     output = {
         "method": method,
         "memory": memory,
+        "preset": preset,
+        "gpu": gpu,
         "retention_mean": round(ret_mean, 4),
         "retention_std": round(ret_std, 4),
         "plasticity_mean": round(pla_mean, 4),

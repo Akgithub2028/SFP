@@ -42,7 +42,7 @@ jobs:
           echo "Detected method: $METHOD"
 
       - name: Run benchmark on Modal (M=128)
-        run: modal run scripts/modal_bench.py --method ${{ steps.detect.outputs.method }} --memory 128
+        run: modal run scripts/modal_bench.py --method ${{ steps.detect.outputs.method }} --memory 128 --preset standard
 
       - name: Post results to PR
         if: always()
