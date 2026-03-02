@@ -57,10 +57,13 @@ class MetricsLogger:
         )
 
     def _push(self) -> None:
-        push_to_gateway(
-            self.gateway, job=self.job, registry=self.registry,
-            grouping_key=self.labels, handler=_auth_handler,
-        )
+        try:
+            push_to_gateway(
+                self.gateway, job=self.job, registry=self.registry,
+                grouping_key=self.labels, handler=_auth_handler,
+            )
+        except Exception as e:
+            print(f"[metrics] push failed: {e}")
 
     def push_step(self, step: int, task: str, loss: float) -> None:
         s = self.labels["seed"]
