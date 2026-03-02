@@ -10,6 +10,7 @@ ExecStart=/home/ubuntu/.local/bin/uvicorn scripts.submit_server:app --host 0.0.0
 Restart=always
 RestartSec=5
 Environment=PATH=/home/ubuntu/.local/bin:/usr/local/bin:/usr/bin:/bin
+Environment=HOME=/home/ubuntu
 
 [Install]
 WantedBy=multi-user.target
