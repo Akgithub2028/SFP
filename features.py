@@ -27,16 +27,23 @@ def get_layer_names(
     if positions is None:
         positions = [0.25, 0.5, 0.75]
 
-    # Detect transformer layer container (LLaMA-style vs GPT-style)
-    base = model.base_model if hasattr(model, "base_model") else model
-    if hasattr(base, "model") and hasattr(base.model, "layers"):
+    # Detect transformer layer container — unwrap PEFT/LoRA wrappers first
+    base = model
+    for attr in ("base_model", "model", "model"):
+        if hasattr(base, attr):
+            base = getattr(base, attr)
+
+    if hasattr(base, "layers"):
         prefix = "model.layers"
-        n_layers = len(base.model.layers)
-    elif hasattr(base, "transformer") and hasattr(base.transformer, "h"):
+        n_layers = len(base.layers)
+    elif hasattr(base, "h"):
         prefix = "transformer.h"
-        n_layers = len(base.transformer.h)
+        n_layers = len(base.h)
     else:
-        raise ValueError("Cannot detect transformer layers on this model architecture.")
+        raise ValueError(
+            f"Cannot detect transformer layers. Available attrs: "
+            f"{[n for n, _ in base.named_children()]}"
+        )
 
     indices = [int(p * n_layers) for p in positions]
     indices = [min(i, n_layers - 1) for i in indices]
