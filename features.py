@@ -5,9 +5,9 @@ features.py — Activation hooks, PCA subspace construction, importance ranking.
 """
 
 from __future__ import annotations
+
 import torch
 from torch import Tensor
-import numpy as np
 
 
 def get_layer_names(
@@ -24,7 +24,23 @@ def get_layer_names(
     Returns:
         List of module name strings (e.g. "model.layers.8").
     """
-    raise NotImplementedError
+    if positions is None:
+        positions = [0.25, 0.5, 0.75]
+
+    # Detect transformer layer container (LLaMA-style vs GPT-style)
+    base = model.base_model if hasattr(model, "base_model") else model
+    if hasattr(base, "model") and hasattr(base.model, "layers"):
+        prefix = "model.layers"
+        n_layers = len(base.model.layers)
+    elif hasattr(base, "transformer") and hasattr(base.transformer, "h"):
+        prefix = "transformer.h"
+        n_layers = len(base.transformer.h)
+    else:
+        raise ValueError("Cannot detect transformer layers on this model architecture.")
+
+    indices = [int(p * n_layers) for p in positions]
+    indices = [min(i, n_layers - 1) for i in indices]
+    return [f"{prefix}.{i}" for i in indices]
 
 
 def collect_activations(
@@ -44,7 +60,49 @@ def collect_activations(
     Returns:
         {layer_name: tensor of shape [n_samples, hidden_dim]}
     """
-    raise NotImplementedError
+    if device == "auto":
+        device = str(next(model.parameters()).device)
+
+    samples = dataset[:max_samples]
+    buffers: dict[str, list[Tensor]] = {name: [] for name in layer_names}
+    hooks = []
+
+    def _make_hook(name: str):
+        def hook_fn(_module, _input, output):
+            # output can be a tuple (hidden_states, ...) or a plain tensor
+            h = output[0] if isinstance(output, tuple) else output
+            if pool == "last":
+                buffers[name].append(h[:, -1, :].detach().cpu())
+            else:
+                buffers[name].append(h.mean(dim=1).detach().cpu())
+
+        return hook_fn
+
+    # Register hooks
+    for name in layer_names:
+        module = dict(model.named_modules())[name]
+        hooks.append(module.register_forward_hook(_make_hook(name)))
+
+    if tokenizer.pad_token is None:
+        tokenizer.pad_token = tokenizer.eos_token
+
+    model.eval()
+    with torch.no_grad():
+        for sample in samples:
+            text = sample.get("input", sample.get("text", ""))
+            enc = tokenizer(
+                text,
+                return_tensors="pt",
+                truncation=True,
+                max_length=512,
+                padding=False,
+            ).to(device)
+            model(**enc)
+
+    for h in hooks:
+        h.remove()
+
+    return {name: torch.cat(tensors, dim=0) for name, tensors in buffers.items()}
 
 
 def build_pca_basis(activations: Tensor, k: int = 128) -> tuple[Tensor, Tensor]:
@@ -57,7 +115,16 @@ def build_pca_basis(activations: Tensor, k: int = 128) -> tuple[Tensor, Tensor]:
     Returns:
         (U, explained_variance) where U is [hidden_dim, k].
     """
-    raise NotImplementedError
+    X = activations.float()
+    X = X - X.mean(dim=0, keepdim=True)
+
+    # SVD: X = U_full @ diag(S) @ Vh  →  columns of Vh^T are PCs in hidden-dim space
+    _U_full, S, Vh = torch.linalg.svd(X, full_matrices=False)
+
+    k = min(k, S.shape[0], Vh.shape[0])
+    U = Vh[:k].T  # [hidden_dim, k]
+    explained_variance = (S[:k] ** 2) / (X.shape[0] - 1)
+    return U, explained_variance
 
 
 def rank_importance(
@@ -70,10 +137,44 @@ def rank_importance(
 ) -> Tensor:
     """For each PC dimension j, zero it and measure metric drop.
 
+    Args:
+        eval_fn: callable(model, tokenizer, memory_set) -> float (higher is better).
+
     Returns:
         importance scores tensor of shape [k].
     """
-    raise NotImplementedError
+    k = basis.shape[1]
+    baseline = eval_fn(model, tokenizer, memory_set)
+    importance = torch.zeros(k)
+
+    module = dict(model.named_modules())[layer_name]
+
+    for j in range(k):
+        direction = basis[:, j].clone()
+
+        def _make_ablate_hook(col: Tensor):
+            col_dev = None
+
+            def hook_fn(_module, _input, output):
+                nonlocal col_dev
+                h = output[0] if isinstance(output, tuple) else output
+                if col_dev is None:
+                    col_dev = col.to(h.device).float()
+                proj = torch.einsum("bsh,h->bs", h.float(), col_dev)
+                h = h - torch.einsum("bs,h->bsh", proj, col_dev)
+                if isinstance(output, tuple):
+                    return (h, *output[1:])
+                return h
+
+            return hook_fn
+
+        handle = module.register_forward_hook(_make_ablate_hook(direction))
+        score = eval_fn(model, tokenizer, memory_set)
+        handle.remove()
+
+        importance[j] = max(baseline - score, 0.0)
+
+    return importance
 
 
 def select_top_r(basis: Tensor, importance: Tensor, r: int = 32) -> Tensor:
@@ -82,4 +183,6 @@ def select_top_r(basis: Tensor, importance: Tensor, r: int = 32) -> Tensor:
     Returns:
         U_r of shape [hidden_dim, r].
     """
-    raise NotImplementedError
+    r = min(r, basis.shape[1])
+    indices = torch.argsort(importance, descending=True)[:r]
+    return basis[:, indices]
