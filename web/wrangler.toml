@@ -9,4 +9,4 @@ run_worker_first = ["/api/*"]
 [[d1_databases]]
 binding = "DB"
 database_name = "sfp-leaderboard"
-database_id = "placeholder-will-be-set-on-deploy"
+database_id = "38491120-68ea-47e2-98cf-2f7d4cde7c73"

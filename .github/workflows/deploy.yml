@@ -5,63 +5,39 @@ on:
     branches: [master]
     paths:
       - "web/**"
-      - "scripts/submit_server.py"
-      - "scripts/metrics.py"
-      - "deploy/**"
       - ".github/workflows/deploy.yml"
   workflow_dispatch:
 
 jobs:
   deploy:
-    runs-on: [self-hosted, sfp]
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+    permissions:
+      contents: read
+      deployments: write
     steps:
       - uses: actions/checkout@v4
 
-      # --- Python deps for submission server ---
-      - name: Install Python deps
-        run: pip3 install --user --break-system-packages fastapi uvicorn modal prometheus-client
-
-      # --- Nginx config ---
-      - name: Deploy nginx config
-        run: |
-          TOKEN=$(cat ~/.sfp-push-token)
-          sed "s/SFP_PUSH_TOKEN_PLACEHOLDER/$TOKEN/" deploy/nginx-sfp.conf | sudo tee /etc/nginx/sites-available/sfp > /dev/null
-          sudo ln -sf /etc/nginx/sites-available/sfp /etc/nginx/sites-enabled/sfp
-          sudo nginx -t
-          sudo systemctl reload nginx
-
-      # --- Submission server systemd service ---
-      - name: Deploy submission server
-        run: |
-          sudo cp deploy/sfp-submit.service /etc/systemd/system/sfp-submit.service
-          sudo systemctl daemon-reload
-          sudo systemctl enable sfp-submit
-          sudo systemctl restart sfp-submit
-          sleep 2
-          sudo systemctl is-active sfp-submit
-
-      # --- Build + deploy web dashboard ---
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
 
-      - name: Build dashboard
-        run: npm ci && npm run build
+      - name: Install dependencies
+        run: npm ci
         working-directory: web
 
-      - name: Deploy dashboard
-        run: |
-          mkdir -p /home/ubuntu/sfp-dashboard
-          rm -rf /home/ubuntu/sfp-dashboard/*
-          cp -r web/dist/client/* /home/ubuntu/sfp-dashboard/
+      - name: Build
+        run: npm run build
+        working-directory: web
 
-      # --- Verify ---
-      - name: Health check
-        run: |
-          echo "--- nginx ---"
-          curl -sf http://localhost:8080/ | head -5
-          echo ""
-          echo "--- submit API ---"
-          curl -sf http://localhost:8090/leaderboard | python3 -m json.tool
-          echo "--- done ---"
+      - name: Deploy to Cloudflare Workers
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: deploy
+          workingDirectory: web
