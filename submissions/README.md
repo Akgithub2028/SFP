@@ -27,3 +27,5 @@ Rules:
 - Can use: `torch`, `torch.nn.functional`, `copy`, `math`
 - Cannot use: `os`, `subprocess`, `sys`, `requests`, etc.
 - Max 10KB
+- Optional: `SETUP = "sfp"` to use SFP setup (PCA basis + anchors)
+- Valid SETUP values: `none`, `distill`, `hidden_distill`, `orthogonal`, `sfp`

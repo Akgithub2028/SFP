@@ -1,4 +1,12 @@
-"""Replay with higher ratio — a simple but strong baseline."""
+"""Replay with higher ratio — a simple but strong baseline.
+
+Optional module-level variables:
+    CONTRIBUTOR: str — your name or team (default: "anonymous")
+    SETUP: str — method setup key from methods.py (e.g. "sfp", "distill",
+        "hidden_distill", "orthogonal"). If set, the training loop calls
+        method_setup(SETUP, ...) and passes the resulting state as **kw
+        to your loss function. Omit for methods that need no setup.
+"""
 
 from torch import Tensor
 

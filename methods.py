@@ -94,6 +94,8 @@ def logit_distill_loss(
 
     return ce_loss + alpha * kl
 
+logit_distill_loss.SETUP = "distill"
+
 
 def hidden_distill_loss(
     model,
@@ -153,6 +155,8 @@ def hidden_distill_loss(
 
     return ce_loss + distill
 
+hidden_distill_loss.SETUP = "hidden_distill"
+
 
 def orthogonal_loss(
     model,
@@ -187,6 +191,8 @@ def orthogonal_loss(
         ortho_reg = ortho_reg + torch.norm(param.T @ b_prev, p="fro") ** 2
 
     return ce_loss + ortho_lambda * ortho_reg
+
+orthogonal_loss.SETUP = "orthogonal"
 
 
 # ---------------------------------------------------------------------------
@@ -273,6 +279,8 @@ def sfp_loss(
     """
     return _sfp_loss_impl(model, batch, memory_batch, basis, anchor_acts, lam, **kw)
 
+sfp_loss.SETUP = "sfp"
+
 
 def sfp_random_basis_loss(
     model,
@@ -285,6 +293,8 @@ def sfp_random_basis_loss(
 ) -> Tensor:
     """Same as SFP but with random orthonormal basis. Control for PCA."""
     return _sfp_loss_impl(model, batch, memory_batch, basis, anchor_acts, lam, **kw)
+
+sfp_random_basis_loss.SETUP = "sfp"
 
 
 def sfp_random_selection_loss(
@@ -299,6 +309,8 @@ def sfp_random_selection_loss(
     """Same as SFP with PCA basis but random dim selection. Control for importance."""
     return _sfp_loss_impl(model, batch, memory_batch, basis, anchor_acts, lam, **kw)
 
+sfp_random_selection_loss.SETUP = "sfp"
+
 
 # ---------------------------------------------------------------------------
 # Setup functions (called at task boundaries)
@@ -311,32 +323,38 @@ def method_setup(
     """Method-specific setup at each task boundary.
 
     Returns a state dict passed to the loss function each step.
-    E.g., for distillation methods: creates teacher snapshot.
-    For SFP: builds PCA basis + ranks importance + caches anchors.
+    Dispatches on the loss function's .SETUP attribute.
     """
-    if method_name in ("naive", "replay"):
+    loss_fn = METHODS.get(method_name)
+    setup_key = getattr(loss_fn, "SETUP", "none") if loss_fn else "none"
+
+    if setup_key == "none":
         return {}
 
-    if method_name in ("distill", "hidden_distill"):
+    if setup_key == "distill":
         teacher = copy.deepcopy(model)
         teacher.eval()
         for p in teacher.parameters():
             p.requires_grad = False
-        state: dict = {"teacher": teacher}
-        if method_name == "hidden_distill":
-            from features import get_layer_names
+        return {"teacher": teacher}
 
-            state["layers"] = kw.get("layers") or get_layer_names(model)
-        return state
+    if setup_key == "hidden_distill":
+        teacher = copy.deepcopy(model)
+        teacher.eval()
+        for p in teacher.parameters():
+            p.requires_grad = False
+        from features import get_layer_names
+        layers = kw.get("layers") or get_layer_names(model)
+        return {"teacher": teacher, "layers": layers}
 
-    if method_name == "orthogonal":
+    if setup_key == "orthogonal":
         prev = {}
         for name, param in model.named_parameters():
             if "lora_B" in name:
                 prev[name] = param.detach().clone()
         return {"prev_lora_weights": prev}
 
-    if method_name in ("sfp", "sfp_random_basis", "sfp_random_selection"):
+    if setup_key == "sfp":
         return sfp_setup(model, tokenizer, memory_buffers, **kw)
 
     return {}

@@ -141,6 +141,21 @@ def validate_code(name: str, code: str) -> str | None:
 # ---------------------------------------------------------------------------
 
 
+def _find_setup_key(code: str) -> str | None:
+    """Extract SETUP = "..." from submitted code."""
+    tree = ast.parse(code)
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Assign):
+            for target in node.targets:
+                if (isinstance(target, ast.Name) and target.id == "SETUP"
+                        and isinstance(node.value, ast.Constant)
+                        and isinstance(node.value.value, str)):
+                    valid = {"none", "distill", "hidden_distill", "orthogonal", "sfp"}
+                    if node.value.value in valid:
+                        return node.value.value
+    return None
+
+
 def _find_loss_fn(code: str, name: str) -> str:
     """Find the loss function name in submitted code."""
     tree = ast.parse(code)
@@ -168,9 +183,14 @@ def run_benchmark(sub_id: str, name: str, code: str) -> None:
         original = METHODS_PATH.read_text()
         fn_name = _find_loss_fn(code, name)
 
+        # Extract SETUP declaration if present
+        setup_key = _find_setup_key(code)
+
         # Patch methods.py: append code + register
         patched = original.rstrip() + "\n\n# --- submitted ---\n" + code + "\n"
         patched += f'\nMETHODS["{name}"] = {fn_name}\n'
+        if setup_key:
+            patched += f'{fn_name}.SETUP = "{setup_key}"\n'
         METHODS_PATH.write_text(patched)
 
         try:
