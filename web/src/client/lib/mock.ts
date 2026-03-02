@@ -2,7 +2,7 @@
  * Mock data for local UI development.
  * Used when the backend API is unreachable.
  */
-import type { LeaderboardData, DetailData, LiveSeries } from "./types";
+import type { LeaderboardData, DetailData } from "./types";
 
 const TASKS = ["math", "code", "ifeval", "safety", "domain"];
 
@@ -181,39 +181,3 @@ export const MOCK_DETAILS: DetailData = {
     per_seed: makePerSeed(e, TASKS),
   })),
 };
-
-// Mock live training series — simulate loss curves for 3 methods across 5 tasks
-function makeLossCurve(
-  method: string,
-  stepsPerTask: number,
-  nTasks: number,
-  baseLoss: number,
-  finalLoss: number,
-): LiveSeries {
-  const points: { step: number; loss: number }[] = [];
-  const totalSteps = stepsPerTask * nTasks;
-
-  for (let step = 0; step <= totalSteps; step += 10) {
-    const taskIdx = Math.floor(step / stepsPerTask);
-    const inTask = (step % stepsPerTask) / stepsPerTask;
-
-    // Loss spikes at task boundaries, then decays
-    const taskSpike = taskIdx > 0 && inTask < 0.05 ? 0.3 : 0;
-    const progress = step / totalSteps;
-    const loss =
-      baseLoss +
-      (finalLoss - baseLoss) * progress +
-      taskSpike +
-      Math.exp(-inTask * 5) * 0.2 +
-      (Math.random() - 0.5) * 0.05;
-
-    points.push({ step, loss: Math.max(0.1, loss) });
-  }
-  return { method, points };
-}
-
-export const MOCK_LIVE_SERIES: LiveSeries[] = [
-  makeLossCurve("naive", 1000, 5, 2.5, 0.8),
-  makeLossCurve("replay", 1000, 5, 2.5, 0.9),
-  makeLossCurve("sfp", 1000, 5, 2.5, 1.0),
-];

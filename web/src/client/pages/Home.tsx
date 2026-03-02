@@ -1,5 +1,3 @@
-"use client";
-
 import { useEffect, useState } from "react";
 import type { Benchmark, Entry, DetailEntry } from "@/lib/types";
 import { fetchLeaderboard, fetchDetails } from "@/lib/api";

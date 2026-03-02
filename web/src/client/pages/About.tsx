@@ -1,5 +1,6 @@
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
+import CodeBlock from "@/components/CodeBlock";
 
 function Cite({ id, title, authors, year, url }: {
   id: string; title: string; authors: string; year: string; url?: string;
@@ -24,9 +25,9 @@ function Ref({ id }: { id: string }) {
   );
 }
 
-export default function AboutPage() {
+export default function About() {
   return (
-    <div className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
+    <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
       <Nav />
 
       <h2 className="mb-2 text-2xl font-bold">About</h2>
@@ -51,12 +52,9 @@ export default function AboutPage() {
             for a few hundred steps. Test it on math again — performance drops significantly. The model hasn&apos;t
             just learned code; it&apos;s <em>unlearned</em> math. You can see this happen in under 5 minutes:
           </p>
-          <pre
-            className="mt-3 overflow-x-auto rounded-md px-4 py-3 text-xs"
-            style={{ background: "var(--bg)", border: "1px solid var(--border)" }}
-          >
-            <code>python forget.py</code>
-          </pre>
+          <div className="mt-3">
+            <CodeBlock language="bash">{`python forget.py`}</CodeBlock>
+          </div>
         </section>
 
         {/* Why it happens */}

@@ -1,5 +1,3 @@
-"use client";
-
 import { useRef, useEffect } from "react";
 import type { DetailEntry } from "@/lib/types";
 import { drawForgettingChart } from "@/lib/charts";

@@ -1,20 +1,10 @@
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
+import CodeBlock from "@/components/CodeBlock";
 
-function Code({ children }: { children: string }) {
+export default function Submit() {
   return (
-    <pre
-      className="overflow-x-auto rounded-md p-4 text-sm leading-relaxed"
-      style={{ background: "var(--bg)", border: "1px solid var(--border)" }}
-    >
-      <code>{children}</code>
-    </pre>
-  );
-}
-
-export default function SubmitPage() {
-  return (
-    <div className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
+    <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
       <Nav />
 
       <h2 className="mb-6 text-2xl font-bold">Submit Your Method</h2>
@@ -31,16 +21,25 @@ export default function SubmitPage() {
         {/* Step 1 */}
         <section>
           <h3 className="mb-3 text-lg font-semibold" style={{ color: "var(--text)" }}>
-            <span style={{ color: "var(--accent)" }}>1.</span> Write your method
+            <span style={{ color: "var(--accent)" }}>1.</span> Clone the repo
+          </h3>
+          <CodeBlock language="bash">{`git clone https://github.com/paradigmxyz/sfp.git && cd sfp
+uv sync`}</CodeBlock>
+        </section>
+
+        {/* Step 2 */}
+        <section>
+          <h3 className="mb-3 text-lg font-semibold" style={{ color: "var(--text)" }}>
+            <span style={{ color: "var(--accent)" }}>2.</span> Write your method
           </h3>
           <p className="mb-3">
             Copy the example submission and implement a function ending in <code className="px-1" style={{ background: "var(--surface)" }}>_loss</code>.
             Your function receives the current batch, an optional memory batch from previous tasks, and any state
             from your setup function. Return a scalar loss tensor.
           </p>
-          <Code>{`cp submissions/_example.py submissions/my_method.py`}</Code>
+          <CodeBlock language="bash">{`cp submissions/_example.py submissions/my_method.py`}</CodeBlock>
           <p className="mt-3 mb-3">Here&apos;s the simplest possible method — experience replay:</p>
-          <Code>{`import torch
+          <CodeBlock language="python">{`import torch
 from torch import Tensor
 
 def my_replay_loss(
@@ -55,7 +54,7 @@ def my_replay_loss(
     if memory_batch is None:
         return out.loss
     mem_out = model(**memory_batch)
-    return (1 - replay_ratio) * out.loss + replay_ratio * mem_out.loss`}</Code>
+    return (1 - replay_ratio) * out.loss + replay_ratio * mem_out.loss`}</CodeBlock>
           <p className="mt-3">
             Your function can use anything from PyTorch. You can also define a <code className="px-1" style={{ background: "var(--surface)" }}>SETUP</code> attribute
             to run code at each task boundary (e.g., snapshot a teacher model for distillation).
@@ -64,12 +63,12 @@ def my_replay_loss(
           </p>
         </section>
 
-        {/* Step 2 */}
+        {/* Step 3 */}
         <section>
           <h3 className="mb-3 text-lg font-semibold" style={{ color: "var(--text)" }}>
-            <span style={{ color: "var(--accent)" }}>2.</span> Submit
+            <span style={{ color: "var(--accent)" }}>3.</span> Submit
           </h3>
-          <Code>{`python submit.py submissions/my_method.py`}</Code>
+          <CodeBlock language="bash">{`uv run python submit.py submissions/my_method.py`}</CodeBlock>
           <p className="mt-3">
             This uploads your code to the benchmark server, which validates it (syntax, blocked imports)
             and spins up a Modal GPU. The benchmark runs 3 seeds × 1000 steps per task on an A10G.
@@ -77,10 +76,10 @@ def my_replay_loss(
           </p>
         </section>
 
-        {/* Step 3 */}
+        {/* Step 4 */}
         <section>
           <h3 className="mb-3 text-lg font-semibold" style={{ color: "var(--text)" }}>
-            <span style={{ color: "var(--accent)" }}>3.</span> Score
+            <span style={{ color: "var(--accent)" }}>4.</span> Score
           </h3>
           <p>
             When the benchmark finishes, your score is computed and added to the leaderboard automatically.
@@ -95,11 +94,11 @@ def my_replay_loss(
             Test locally first (optional)
           </h3>
           <p className="mb-3">Quick sanity check on CPU (~5 min):</p>
-          <Code>{`python train.py --method my_replay \\
+          <CodeBlock language="bash">{`uv run python train.py --method my_replay \\
     --method_file submissions/my_method.py \\
     --memory 128 --steps_per_task 50 \\
     --model HuggingFaceTB/SmolLM2-135M-Instruct \\
-    --tasks math,code --mode smoke`}</Code>
+    --tasks math,code --mode smoke`}</CodeBlock>
         </section>
 
         {/* What's fixed */}

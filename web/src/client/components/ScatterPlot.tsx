@@ -1,5 +1,3 @@
-"use client";
-
 import { useRef, useEffect } from "react";
 import type { Entry } from "@/lib/types";
 import { drawScatter } from "@/lib/charts";

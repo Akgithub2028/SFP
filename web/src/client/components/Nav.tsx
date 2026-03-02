@@ -1,7 +1,4 @@
-"use client";
-
-import { usePathname } from "next/navigation";
-import Link from "next/link";
+import { useLocation, Link } from "react-router-dom";
 
 const LINKS = [
   { href: "/", label: "Leaderboard" },
@@ -10,7 +7,7 @@ const LINKS = [
 ];
 
 export default function Nav() {
-  const pathname = usePathname();
+  const { pathname } = useLocation();
 
   return (
     <header
@@ -19,7 +16,7 @@ export default function Nav() {
     >
       <div className="flex items-baseline justify-between">
         <div className="flex items-baseline gap-6">
-          <Link href="/" className="hover:no-underline">
+          <Link to="/" className="hover:no-underline">
             <h1
               className="text-2xl font-bold tracking-tight"
               style={{ color: "var(--text)" }}
@@ -31,7 +28,7 @@ export default function Nav() {
             {LINKS.map((link) => (
               <Link
                 key={link.href}
-                href={link.href}
+                to={link.href}
                 className="text-sm transition-colors"
                 style={{
                   color:

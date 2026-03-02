@@ -43,18 +43,4 @@ export interface DetailData {
   entries: DetailEntry[];
 }
 
-export interface PromResult {
-  metric: Record<string, string>;
-  value?: [number, string];
-  values?: [number, string][];
-}
 
-export interface LivePoint {
-  step: number;
-  loss: number;
-}
-
-export interface LiveSeries {
-  method: string;
-  points: LivePoint[];
-}

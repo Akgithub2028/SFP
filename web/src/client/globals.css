@@ -57,9 +57,4 @@ tr:hover td {
   height: 280px;
 }
 
-/* Hide Next.js dev indicator */
-[data-next-badge],
-nextjs-portal,
-[data-nextjs-dialog-overlay] ~ div[style*="fixed"] {
-  display: none !important;
-}
+
