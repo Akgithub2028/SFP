@@ -1,4 +1,5 @@
 import type { LeaderboardData, DetailData, PromResult } from "./types";
+import { MOCK_LEADERBOARD, MOCK_DETAILS } from "./mock";
 
 const API_BASE =
   typeof window !== "undefined" && window.location.port === "3000"
@@ -10,20 +11,20 @@ const PROM = `${API_BASE}/api/v1`;
 export async function fetchLeaderboard(): Promise<LeaderboardData | null> {
   try {
     const res = await fetch(`${API_BASE}/leaderboard`);
-    if (!res.ok) return null;
+    if (!res.ok) throw new Error();
     return await res.json();
   } catch {
-    return null;
+    return MOCK_LEADERBOARD;
   }
 }
 
 export async function fetchDetails(): Promise<DetailData | null> {
   try {
     const res = await fetch(`${API_BASE}/leaderboard/details`);
-    if (!res.ok) return null;
+    if (!res.ok) throw new Error();
     return await res.json();
   } catch {
-    return null;
+    return MOCK_DETAILS;
   }
 }
 

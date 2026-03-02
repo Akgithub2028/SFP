@@ -74,6 +74,14 @@ export function drawGrid(
   }
 }
 
+// Methods to highlight in the forgetting chart (narrative: problem → baseline → solution)
+const HIGHLIGHT_METHODS = ["naive", "replay", "sfp"];
+const HIGHLIGHT_COLORS: Record<string, string> = {
+  naive: "#ef4444",   // red — the problem
+  replay: "#3b82f6",  // blue — simple baseline
+  sfp: "#22c55e",     // green — our solution
+};
+
 export function drawForgettingChart(
   canvas: HTMLCanvasElement,
   details: DetailEntry[],
@@ -83,35 +91,57 @@ export function drawForgettingChart(
   const rect = canvas.getBoundingClientRect();
   const cw = rect.width;
   const ch = rect.height;
-  const pad = defaultPad();
+  const pad = { top: 30, right: 80, bottom: 45, left: 55 };
   const pw = cw - pad.left - pad.right;
   const ph = ch - pad.top - pad.bottom;
 
   const styles = getComputedStyle(document.documentElement);
   const dimColor = styles.getPropertyValue('--text-dim').trim() || '#888';
 
-  // Collect all accuracy values to determine y range
-  const allVals: number[] = [];
-  for (const entry of details) {
+  // Filter to highlight methods only
+  const shown = details.filter(d => HIGHLIGHT_METHODS.includes(d.method));
+  if (shown.length === 0) return;
+
+  const numStages = shown[0]?.per_seed?.[0]?.history?.length ?? tasks.length;
+
+  // Compute mean retention at each stage for each method:
+  // retention(stage) = mean accuracy across all tasks seen up to that stage
+  type MethodCurve = { method: string; points: number[] };
+  const curves: MethodCurve[] = [];
+
+  for (const entry of shown) {
     if (!entry.per_seed?.length) continue;
-    for (const seed of entry.per_seed) {
-      if (!seed.history?.length) continue;
-      for (const stage of seed.history) {
-        for (const task of tasks) {
+    const points: number[] = [];
+
+    for (let si = 0; si < numStages; si++) {
+      let totalAcc = 0, totalCount = 0;
+      for (const seed of entry.per_seed) {
+        const stage = seed.history?.[si];
+        if (!stage) continue;
+        for (const task of tasks.slice(0, si + 1)) {
           const metrics = stage[task];
           if (!metrics) continue;
-          for (const v of Object.values(metrics)) {
-            allVals.push(v);
-          }
+          totalAcc += Object.values(metrics)[0] ?? 0;
+          totalCount++;
         }
       }
+      points.push(totalCount > 0 ? totalAcc / totalCount : 0);
     }
+    curves.push({ method: entry.method, points });
   }
 
+  // Y range from all points
+  const allVals = curves.flatMap(c => c.points);
   if (allVals.length === 0) return;
 
-  const yMin = Math.max(0, Math.min(...allVals) - 0.05);
-  const yMax = Math.min(1, Math.max(...allVals) + 0.05);
+  let yMin = Math.max(0, Math.min(...allVals) - 0.05);
+  let yMax = Math.min(1, Math.max(...allVals) + 0.05);
+  const ySpan = yMax - yMin;
+  if (ySpan < 0.2) {
+    const mid = (yMax + yMin) / 2;
+    yMin = Math.max(0, mid - 0.1);
+    yMax = Math.min(1, mid + 0.1);
+  }
 
   // Y grid
   const yLabels: number[] = [];
@@ -121,84 +151,75 @@ export function drawForgettingChart(
   if (yLabels.length < 2) yLabels.push(yMin, yMax);
   drawGrid(ctx, pad, cw, ch, yLabels);
 
-  // X labels (tasks trained sequentially)
-  const numStages = details[0]?.per_seed?.[0]?.history?.length ?? tasks.length;
+  // X labels — "After task N" with task name
   ctx.fillStyle = dimColor;
   ctx.textAlign = "center";
   ctx.textBaseline = "top";
   for (let i = 0; i < numStages; i++) {
     const x = pad.left + (i / Math.max(1, numStages - 1)) * pw;
-    const label = i < tasks.length ? tasks[i] : `step ${i}`;
+    const label = i < tasks.length ? `+${tasks[i]}` : `+task ${i}`;
     ctx.fillText(label, x, ch - pad.bottom + 8);
   }
 
-  // Draw lines for each method
-  for (let mi = 0; mi < details.length; mi++) {
-    const entry = details[mi];
-    if (!entry.per_seed?.length) continue;
+  // Axis label
+  ctx.fillText("task trained", cw / 2, ch - 5);
 
-    const color = COLORS[mi % COLORS.length];
+  // Y axis label
+  ctx.save();
+  ctx.translate(12, pad.top + ph / 2);
+  ctx.rotate(-Math.PI / 2);
+  ctx.textAlign = "center";
+  ctx.fillText("mean accuracy (all tasks)", 0, 0);
+  ctx.restore();
 
-    // For each task, draw its accuracy across stages (averaged across seeds)
-    for (let ti = 0; ti < tasks.length; ti++) {
-      const task = tasks[ti];
-      const dash = DASHES[ti % DASHES.length];
+  // Draw curves — sorted so sfp draws on top
+  const drawOrder = ["naive", "replay", "sfp"];
+  const sorted = [...curves].sort(
+    (a, b) => drawOrder.indexOf(a.method) - drawOrder.indexOf(b.method)
+  );
 
-      ctx.strokeStyle = color;
-      ctx.lineWidth = 2;
-      ctx.setLineDash(dash);
+  for (const curve of sorted) {
+    const color = HIGHLIGHT_COLORS[curve.method] ?? COLORS[0];
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2.5;
+    ctx.setLineDash([]);
+    ctx.beginPath();
+
+    let started = false;
+    for (let si = 0; si < curve.points.length; si++) {
+      const x = pad.left + (si / Math.max(1, numStages - 1)) * pw;
+      const y = pad.top + ph - ((curve.points[si] - yMin) / (yMax - yMin)) * ph;
+      if (!started) { ctx.moveTo(x, y); started = true; }
+      else { ctx.lineTo(x, y); }
+    }
+    ctx.stroke();
+
+    // Dots at each point
+    ctx.fillStyle = color;
+    for (let si = 0; si < curve.points.length; si++) {
+      const x = pad.left + (si / Math.max(1, numStages - 1)) * pw;
+      const y = pad.top + ph - ((curve.points[si] - yMin) / (yMax - yMin)) * ph;
       ctx.beginPath();
-
-      let started = false;
-      for (let si = 0; si < numStages; si++) {
-        let sum = 0, count = 0;
-        for (const seed of entry.per_seed) {
-          const metrics = seed.history?.[si]?.[task];
-          if (!metrics) continue;
-          sum += Object.values(metrics)[0] ?? 0;
-          count++;
-        }
-        if (count === 0) continue;
-        const val = sum / count;
-        const x = pad.left + (si / Math.max(1, numStages - 1)) * pw;
-        const y = pad.top + ph - ((val - yMin) / (yMax - yMin)) * ph;
-        if (!started) {
-          ctx.moveTo(x, y);
-          started = true;
-        } else {
-          ctx.lineTo(x, y);
-        }
-      }
-      ctx.stroke();
-      ctx.setLineDash([]);
+      ctx.arc(x, y, 3, 0, Math.PI * 2);
+      ctx.fill();
     }
 
-    // Method label at right (averaged across seeds)
-    const lastTask = tasks[tasks.length - 1];
-    let sum = 0, count = 0;
-    for (const seed of entry.per_seed) {
-      const lastStage = seed.history?.[seed.history.length - 1];
-      const lastMetrics = lastStage?.[lastTask];
-      if (!lastMetrics) continue;
-      sum += Object.values(lastMetrics)[0] ?? 0;
-      count++;
-    }
-    if (count > 0) {
-      const lastVal = sum / count;
-      const ly =
-        pad.top + ph - ((lastVal - yMin) / (yMax - yMin)) * ph;
-      ctx.fillStyle = color;
-      ctx.textAlign = "left";
-      ctx.textBaseline = "middle";
-      ctx.fillText(entry.method, pad.left + pw + 4, ly);
-    }
+    // Label at right
+    const lastVal = curve.points[curve.points.length - 1];
+    const ly = pad.top + ph - ((lastVal - yMin) / (yMax - yMin)) * ph;
+    ctx.fillStyle = color;
+    ctx.textAlign = "left";
+    ctx.textBaseline = "middle";
+    ctx.font = 'bold 11px "Berkeley Mono", "JetBrains Mono", monospace';
+    ctx.fillText(curve.method, pad.left + pw + 6, ly);
+    ctx.font = '11px "Berkeley Mono", "JetBrains Mono", monospace';
   }
 
   // Title
   ctx.fillStyle = dimColor;
   ctx.textAlign = "center";
   ctx.textBaseline = "top";
-  ctx.fillText("Task accuracy over sequential training", cw / 2, 8);
+  ctx.fillText("Mean accuracy as tasks are added", cw / 2, 8);
 }
 
 export function drawScatter(
@@ -220,10 +241,24 @@ export function drawScatter(
 
   const retVals = entries.map((e) => e.retention_mean);
   const plasVals = entries.map((e) => e.plasticity_mean);
-  const xMin = Math.max(0, Math.min(...plasVals) - 0.05);
-  const xMax = Math.min(1, Math.max(...plasVals) + 0.05);
-  const yMin = Math.max(0, Math.min(...retVals) - 0.05);
-  const yMax = Math.min(1, Math.max(...retVals) + 0.05);
+  let xMin = Math.max(0, Math.min(...plasVals) - 0.05);
+  let xMax = Math.min(1, Math.max(...plasVals) + 0.05);
+  let yMin = Math.max(0, Math.min(...retVals) - 0.05);
+  let yMax = Math.min(1, Math.max(...retVals) + 0.05);
+
+  // Ensure minimum span of 0.2
+  const xSpan = xMax - xMin;
+  if (xSpan < 0.2) {
+    const mid = (xMax + xMin) / 2;
+    xMin = Math.max(0, mid - 0.1);
+    xMax = Math.min(1, mid + 0.1);
+  }
+  const ySpan = yMax - yMin;
+  if (ySpan < 0.2) {
+    const mid = (yMax + yMin) / 2;
+    yMin = Math.max(0, mid - 0.1);
+    yMax = Math.min(1, mid + 0.1);
+  }
 
   // Grid
   const yLabels: number[] = [];
