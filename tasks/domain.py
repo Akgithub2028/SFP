@@ -49,7 +49,7 @@ def evaluate(model, tokenizer, mode: str = "fast") -> dict[str, float]:
     }
     """
     # ── Perplexity on scientific text ────────────────────────────────────
-    n_ppl = 100 if mode == "fast" else 500
+    n_ppl = 3 if mode == "smoke" else 100 if mode == "fast" else 500
     texts = []
     try:
         from datasets import load_dataset
@@ -82,8 +82,9 @@ def evaluate(model, tokenizer, mode: str = "fast") -> dict[str, float]:
     ppl = math.exp(total_loss / total_tokens) if total_tokens > 0 else float("inf")
 
     # ── Domain QA ────────────────────────────────────────────────────────
+    qa_items = _SCIENCE_QA[:3] if mode == "smoke" else _SCIENCE_QA
     correct = 0
-    for question, answer in tqdm(_SCIENCE_QA, desc="domain-qa"):
+    for question, answer in tqdm(qa_items, desc="domain-qa"):
         prompt = f"Answer in one or two words.\n\nQuestion: {question}\nAnswer:"
         inputs = tokenizer(prompt, return_tensors="pt", truncation=True, max_length=256)
         inputs = {k: v.to(model.device) for k, v in inputs.items()}
@@ -100,6 +101,6 @@ def evaluate(model, tokenizer, mode: str = "fast") -> dict[str, float]:
         if answer.lower() in response:
             correct += 1
 
-    qa_acc = correct / len(_SCIENCE_QA) if _SCIENCE_QA else 0.0
+    qa_acc = correct / len(qa_items) if qa_items else 0.0
 
     return {"domain_ppl": ppl, "domain_qa_accuracy": qa_acc}

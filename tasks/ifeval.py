@@ -85,7 +85,7 @@ def evaluate(model, tokenizer, mode: str = "fast") -> dict[str, float]:
     Returns: {"ifeval_accuracy": float}
     """
     ds = load_dataset("google/IFEval", split="train")
-    n = 100 if mode == "fast" else len(ds)
+    n = 5 if mode == "smoke" else 100 if mode == "fast" else len(ds)
     ds = ds.select(range(n))
 
     satisfied = 0

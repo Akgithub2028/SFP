@@ -42,12 +42,19 @@ def load_model(
         target_modules = ["q_proj", "v_proj"]
 
     # --- Load base model ---
-    # For "auto" we rely on accelerate's device_map; otherwise load to CPU first and move later.
-    if device == "auto":
+    # For "auto" we rely on accelerate's device_map when CUDA is available;
+    # otherwise fall back to CPU (MPS + device_map="auto" causes Peft issues).
+    if device == "auto" and torch.cuda.is_available():
         base_model = AutoModelForCausalLM.from_pretrained(
             name,
             torch_dtype=torch.bfloat16,
             device_map="auto",
+        )
+    elif device == "auto":
+        device = "cpu"
+        base_model = AutoModelForCausalLM.from_pretrained(
+            name,
+            torch_dtype=torch.bfloat16,
         )
     else:
         base_model = AutoModelForCausalLM.from_pretrained(

@@ -54,7 +54,7 @@ def evaluate(model, tokenizer, mode: str = "fast") -> dict[str, float]:
     Returns: {"code_pass_at_1": float}
     """
     ds = load_dataset("openai/openai_humaneval", split="test")
-    n = 50 if mode == "fast" else len(ds)
+    n = 5 if mode == "smoke" else 50 if mode == "fast" else len(ds)
     ds = ds.select(range(n))
 
     passed = 0

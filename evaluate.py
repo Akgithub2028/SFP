@@ -199,7 +199,7 @@ def main() -> None:
     parser.add_argument("--run", type=str, help="Read results history from a run directory")
     parser.add_argument("--aggregate", type=str, nargs="+", help="Aggregate results across runs")
     parser.add_argument("--format", type=str, default="table", choices=["table", "leaderboard"])
-    parser.add_argument("--mode", type=str, default="fast", choices=["fast", "full"])
+    parser.add_argument("--mode", type=str, default="fast", choices=["smoke", "fast", "full"])
     parser.add_argument("--tasks", type=str, nargs="+", default=ALL_TASKS, choices=ALL_TASKS)
     args = parser.parse_args()
 

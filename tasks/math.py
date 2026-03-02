@@ -39,7 +39,7 @@ def evaluate(model, tokenizer, mode: str = "fast") -> dict[str, float]:
     Returns: {"math_accuracy": float}
     """
     ds = load_dataset("openai/gsm8k", "main", split="test")
-    n = 200 if mode == "fast" else len(ds)
+    n = 5 if mode == "smoke" else 200 if mode == "fast" else len(ds)
     ds = ds.select(range(n))
 
     correct = 0

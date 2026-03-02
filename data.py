@@ -130,7 +130,7 @@ def load_task(
     elif task_name == "code":
         ds = load_dataset("google-research-datasets/mbpp", "sanitized", split=split)
         examples = [
-            {"input": row["text"], "output": row["code"], "task_id": "code"}
+            {"input": row["prompt"], "output": row["code"], "task_id": "code"}
             for row in ds
         ]
     elif task_name == "ifeval":
