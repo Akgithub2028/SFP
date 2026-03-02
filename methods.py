@@ -396,7 +396,7 @@ def sfp_setup(
     anchor_acts: dict[str, Tensor] = {}
 
     for layer_name in layers:
-        a = acts[layer_name]  # [n, hidden]
+        a = acts[layer_name].float()  # [n, hidden] — ensure float32 for PCA
         u, _var = build_pca_basis(a, k=k)  # [hidden, k]
         u_r = select_top_r(u, _var, r=r)  # [hidden, r]
         basis[layer_name] = u_r
