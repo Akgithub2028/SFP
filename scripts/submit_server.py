@@ -291,6 +291,19 @@ def status(sub_id: str):
     return dict(row)
 
 
+@app.get("/results/{sub_id}")
+def results(sub_id: str):
+    """Full benchmark results for a submission (used by dashboard charts)."""
+    with get_db() as db:
+        row = db.execute(
+            "SELECT results_json FROM submissions WHERE id=? AND status='complete'",
+            (sub_id,),
+        ).fetchone()
+    if not row or not row["results_json"]:
+        raise HTTPException(404, "No results")
+    return json.loads(row["results_json"])
+
+
 BENCHMARK = {
     "model": "Qwen/Qwen2.5-1.5B-Instruct",
     "tasks": ["math", "code", "ifeval"],
@@ -322,6 +335,35 @@ def leaderboard():
         "benchmark": BENCHMARK,
         "entries": [dict(r) for r in rows],
     }
+
+
+@app.get("/leaderboard/details")
+def leaderboard_details():
+    """Top methods with full per-seed results for charts."""
+    with get_db() as db:
+        rows = db.execute("""
+            SELECT method, contributor, score_mean, results_json
+            FROM submissions
+            WHERE status='complete'
+            AND score_mean = (
+                SELECT MAX(s2.score_mean) FROM submissions s2
+                WHERE s2.method = submissions.method AND s2.status='complete'
+            )
+            GROUP BY method
+            ORDER BY score_mean DESC
+            LIMIT 5
+        """).fetchall()
+    entries = []
+    for r in rows:
+        entry = {
+            "method": r["method"],
+            "contributor": r["contributor"],
+            "score_mean": r["score_mean"],
+        }
+        if r["results_json"]:
+            entry["per_seed"] = json.loads(r["results_json"]).get("per_seed", [])
+        entries.append(entry)
+    return {"entries": entries}
 
 
 @app.get("/submissions")
