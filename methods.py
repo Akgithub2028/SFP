@@ -6,104 +6,385 @@ No classes, no inheritance. Just functions.
 """
 
 from __future__ import annotations
-import torch
-from torch import Tensor
-import torch.nn.functional as F
-from typing import Callable
 
+import copy
+from collections.abc import Callable
+
+import torch
+import torch.nn.functional as F
+from torch import Tensor
 
 # ---------------------------------------------------------------------------
 # Baselines
 # ---------------------------------------------------------------------------
 
+
 def naive_loss(model, batch: dict, **kw) -> Tensor:
     """Standard cross-entropy loss. No forgetting mitigation. ~5 lines."""
-    raise NotImplementedError
+    out = model(
+        input_ids=batch["input_ids"],
+        attention_mask=batch["attention_mask"],
+        labels=batch["labels"],
+    )
+    return out.loss
 
 
-def replay_loss(model, batch: dict, memory_batch: dict | None = None,
-                replay_ratio: float = 0.1, **kw) -> Tensor:
+def replay_loss(
+    model,
+    batch: dict,
+    memory_batch: dict | None = None,
+    replay_ratio: float = 0.1,
+    **kw,
+) -> Tensor:
     """Mix new-task CE with memory replay CE at given ratio. ~15 lines."""
-    raise NotImplementedError
+    out_new = model(
+        input_ids=batch["input_ids"],
+        attention_mask=batch["attention_mask"],
+        labels=batch["labels"],
+    )
+    if memory_batch is None:
+        return out_new.loss
+
+    out_mem = model(
+        input_ids=memory_batch["input_ids"],
+        attention_mask=memory_batch["attention_mask"],
+        labels=memory_batch["labels"],
+    )
+    return (1 - replay_ratio) * out_new.loss + replay_ratio * out_mem.loss
 
 
-def logit_distill_loss(model, batch: dict, teacher=None,
-                       memory_batch: dict | None = None,
-                       temperature: float = 2.0, alpha: float = 0.5, **kw) -> Tensor:
+def logit_distill_loss(
+    model,
+    batch: dict,
+    teacher=None,
+    memory_batch: dict | None = None,
+    temperature: float = 2.0,
+    alpha: float = 0.5,
+    **kw,
+) -> Tensor:
     """LwF-style: CE on new task + KL(teacher || student) on memory. ~25 lines."""
-    raise NotImplementedError
+    out_new = model(
+        input_ids=batch["input_ids"],
+        attention_mask=batch["attention_mask"],
+        labels=batch["labels"],
+    )
+    ce_loss = out_new.loss
+
+    if teacher is None or memory_batch is None:
+        return ce_loss
+
+    with torch.no_grad():
+        teacher_out = teacher(
+            input_ids=memory_batch["input_ids"],
+            attention_mask=memory_batch["attention_mask"],
+        )
+    student_out = model(
+        input_ids=memory_batch["input_ids"],
+        attention_mask=memory_batch["attention_mask"],
+    )
+
+    t_logits = teacher_out.logits / temperature
+    s_logits = student_out.logits / temperature
+
+    kl = F.kl_div(
+        F.log_softmax(s_logits, dim=-1),
+        F.softmax(t_logits, dim=-1),
+        reduction="batchmean",
+    ) * (temperature**2)
+
+    return ce_loss + alpha * kl
 
 
-def hidden_distill_loss(model, batch: dict, teacher=None,
-                        memory_batch: dict | None = None,
-                        layers: list[str] | None = None, **kw) -> Tensor:
+def hidden_distill_loss(
+    model,
+    batch: dict,
+    teacher=None,
+    memory_batch: dict | None = None,
+    layers: list[str] | None = None,
+    **kw,
+) -> Tensor:
     """POD-style: CE + L2 match of normalized hidden states at selected layers. ~30 lines."""
-    raise NotImplementedError
+    out_new = model(
+        input_ids=batch["input_ids"],
+        attention_mask=batch["attention_mask"],
+        labels=batch["labels"],
+    )
+    ce_loss = out_new.loss
+
+    if teacher is None or memory_batch is None or not layers:
+        return ce_loss
+
+    student_acts: dict[str, Tensor] = {}
+    teacher_acts: dict[str, Tensor] = {}
+
+    def _make_hook(store: dict, name: str):
+        def hook(_module, _input, output):
+            out = output[0] if isinstance(output, tuple) else output
+            store[name] = out
+        return hook
+
+    s_handles = []
+    t_handles = []
+    for name in layers:
+        s_mod = dict(model.named_modules())[name]
+        t_mod = dict(teacher.named_modules())[name]
+        s_handles.append(s_mod.register_forward_hook(_make_hook(student_acts, name)))
+        t_handles.append(t_mod.register_forward_hook(_make_hook(teacher_acts, name)))
+
+    try:
+        model(
+            input_ids=memory_batch["input_ids"],
+            attention_mask=memory_batch["attention_mask"],
+        )
+        with torch.no_grad():
+            teacher(
+                input_ids=memory_batch["input_ids"],
+                attention_mask=memory_batch["attention_mask"],
+            )
+    finally:
+        for h in s_handles + t_handles:
+            h.remove()
+
+    distill = torch.tensor(0.0, device=ce_loss.device)
+    for name in layers:
+        s_norm = F.normalize(student_acts[name].float(), dim=-1)
+        t_norm = F.normalize(teacher_acts[name].float(), dim=-1)
+        distill = distill + F.mse_loss(s_norm, t_norm)
+
+    return ce_loss + distill
 
 
-def orthogonal_loss(model, batch: dict,
-                    prev_lora_weights: dict | None = None,
-                    ortho_lambda: float = 1.0, **kw) -> Tensor:
+def orthogonal_loss(
+    model,
+    batch: dict,
+    prev_lora_weights: dict | None = None,
+    ortho_lambda: float = 1.0,
+    **kw,
+) -> Tensor:
     """Constrain new LoRA to be orthogonal to previous adapters. ~30 lines."""
-    raise NotImplementedError
+    out = model(
+        input_ids=batch["input_ids"],
+        attention_mask=batch["attention_mask"],
+        labels=batch["labels"],
+    )
+    ce_loss = out.loss
+
+    if not prev_lora_weights:
+        return ce_loss
+
+    ortho_reg = torch.tensor(0.0, device=ce_loss.device)
+    for name, param in model.named_parameters():
+        if "lora_B" not in name or not param.requires_grad:
+            continue
+        prev_key = name.replace("lora_B", "lora_B_prev")
+        if prev_key not in prev_lora_weights:
+            base_key = name
+            if base_key not in prev_lora_weights:
+                continue
+            prev_key = base_key
+        b_prev = prev_lora_weights[prev_key].to(param.device)
+        # ||B_new^T @ B_prev||^2_F
+        ortho_reg = ortho_reg + torch.norm(param.T @ b_prev, p="fro") ** 2
+
+    return ce_loss + ortho_lambda * ortho_reg
 
 
 # ---------------------------------------------------------------------------
 # SFP (our method)
 # ---------------------------------------------------------------------------
 
-def sfp_loss(model, batch: dict, memory_batch: dict | None = None,
-             basis: dict | None = None, anchor_acts: dict | None = None,
-             lam: float = 0.1, **kw) -> Tensor:
+
+def _sfp_loss_impl(
+    model,
+    batch: dict,
+    memory_batch: dict | None = None,
+    basis: dict | None = None,
+    anchor_acts: dict | None = None,
+    lam: float = 0.1,
+    **kw,
+) -> Tensor:
+    """Shared SFP loss body for all SFP variants.
+
+    L = L_new + lam * sum_l || U_r^T a_l(x;t) - anchor_acts_l ||^2
+    """
+    out_new = model(
+        input_ids=batch["input_ids"],
+        attention_mask=batch["attention_mask"],
+        labels=batch["labels"],
+    )
+    ce_loss = out_new.loss
+
+    if basis is None or anchor_acts is None or memory_batch is None:
+        return ce_loss
+
+    layer_names = list(basis.keys())
+    current_acts: dict[str, Tensor] = {}
+
+    def _make_hook(name: str):
+        def hook(_module, _input, output):
+            out = output[0] if isinstance(output, tuple) else output
+            # mean-pool over sequence dimension → [batch, hidden]
+            current_acts[name] = out.float().mean(dim=1)
+        return hook
+
+    handles = []
+    modules = dict(model.named_modules())
+    for name in layer_names:
+        handles.append(modules[name].register_forward_hook(_make_hook(name)))
+
+    try:
+        model(
+            input_ids=memory_batch["input_ids"],
+            attention_mask=memory_batch["attention_mask"],
+        )
+    finally:
+        for h in handles:
+            h.remove()
+
+    preserve = torch.tensor(0.0, device=ce_loss.device)
+    for name in layer_names:
+        u_r = basis[name].to(current_acts[name].device)  # [hidden, r]
+        projected = current_acts[name] @ u_r  # [batch, r]
+        anchor = anchor_acts[name].to(projected.device)  # [n, r]
+        # align batch sizes (take min)
+        n = min(projected.shape[0], anchor.shape[0])
+        preserve = preserve + F.mse_loss(projected[:n], anchor[:n])
+
+    return ce_loss + lam * preserve
+
+
+def sfp_loss(
+    model,
+    batch: dict,
+    memory_batch: dict | None = None,
+    basis: dict | None = None,
+    anchor_acts: dict | None = None,
+    lam: float = 0.1,
+    **kw,
+) -> Tensor:
     """Sparse Feature Preservation loss.
 
-    L = L_new + λ * Σ_ℓ || U_r^T a_ℓ(x;θ) − anchor_acts_ℓ ||²
+    L = L_new + lam * sum_l || U_r^T a_l(x;t) - anchor_acts_l ||^2
 
     Args:
         basis: {layer_name: U_r tensor [hidden_dim, r]}
         anchor_acts: {layer_name: projected activations [n, r] at anchor checkpoint}
         lam: Preservation weight.
     """
-    raise NotImplementedError
+    return _sfp_loss_impl(model, batch, memory_batch, basis, anchor_acts, lam, **kw)
 
 
-def sfp_random_basis_loss(model, batch: dict, memory_batch: dict | None = None,
-                          basis: dict | None = None, anchor_acts: dict | None = None,
-                          lam: float = 0.1, **kw) -> Tensor:
+def sfp_random_basis_loss(
+    model,
+    batch: dict,
+    memory_batch: dict | None = None,
+    basis: dict | None = None,
+    anchor_acts: dict | None = None,
+    lam: float = 0.1,
+    **kw,
+) -> Tensor:
     """Same as SFP but with random orthonormal basis. Control for PCA."""
-    raise NotImplementedError
+    return _sfp_loss_impl(model, batch, memory_batch, basis, anchor_acts, lam, **kw)
 
 
-def sfp_random_selection_loss(model, batch: dict, memory_batch: dict | None = None,
-                              basis: dict | None = None, anchor_acts: dict | None = None,
-                              lam: float = 0.1, **kw) -> Tensor:
+def sfp_random_selection_loss(
+    model,
+    batch: dict,
+    memory_batch: dict | None = None,
+    basis: dict | None = None,
+    anchor_acts: dict | None = None,
+    lam: float = 0.1,
+    **kw,
+) -> Tensor:
     """Same as SFP with PCA basis but random dim selection. Control for importance."""
-    raise NotImplementedError
+    return _sfp_loss_impl(model, batch, memory_batch, basis, anchor_acts, lam, **kw)
 
 
 # ---------------------------------------------------------------------------
 # Setup functions (called at task boundaries)
 # ---------------------------------------------------------------------------
 
-def method_setup(method_name: str, model, tokenizer,
-                 memory_buffers: dict, **kw) -> dict:
+
+def method_setup(
+    method_name: str, model, tokenizer, memory_buffers: dict, **kw
+) -> dict:
     """Method-specific setup at each task boundary.
 
     Returns a state dict passed to the loss function each step.
     E.g., for distillation methods: creates teacher snapshot.
     For SFP: builds PCA basis + ranks importance + caches anchors.
     """
-    raise NotImplementedError
+    if method_name in ("naive", "replay"):
+        return {}
+
+    if method_name in ("distill", "hidden_distill"):
+        teacher = copy.deepcopy(model)
+        teacher.eval()
+        for p in teacher.parameters():
+            p.requires_grad = False
+        state: dict = {"teacher": teacher}
+        if method_name == "hidden_distill":
+            from features import get_layer_names
+
+            state["layers"] = kw.get("layers") or get_layer_names(model)
+        return state
+
+    if method_name == "orthogonal":
+        prev = {}
+        for name, param in model.named_parameters():
+            if "lora_B" in name:
+                prev[name] = param.detach().clone()
+        return {"prev_lora_weights": prev}
+
+    if method_name in ("sfp", "sfp_random_basis", "sfp_random_selection"):
+        return sfp_setup(model, tokenizer, memory_buffers, **kw)
+
+    return {}
 
 
-def sfp_setup(model, tokenizer, memory_buffers: dict,
-              layers: list[str] | None = None,
-              k: int = 128, r: int = 32) -> dict:
+def sfp_setup(
+    model,
+    tokenizer,
+    memory_buffers: dict,
+    layers: list[str] | None = None,
+    k: int = 128,
+    r: int = 32,
+    **kw,
+) -> dict:
     """Build PCA basis, rank importance, select top-r, cache anchor activations.
 
     Returns: {"basis": {...}, "anchor_acts": {...}}
     """
-    raise NotImplementedError
+    from features import (
+        build_pca_basis,
+        collect_activations,
+        get_layer_names,
+        select_top_r,
+    )
+
+    if layers is None:
+        layers = get_layer_names(model)
+
+    # Flatten memory buffers into a list of samples
+    mem_samples: list[dict] = []
+    for samples in memory_buffers.values():
+        if isinstance(samples, list):
+            mem_samples.extend(samples)
+
+    # Collect activations at each layer
+    acts = collect_activations(model, mem_samples, tokenizer, layers)
+
+    basis: dict[str, Tensor] = {}
+    anchor_acts: dict[str, Tensor] = {}
+
+    for layer_name in layers:
+        a = acts[layer_name]  # [n, hidden]
+        u, _var = build_pca_basis(a, k=k)  # [hidden, k]
+        u_r = select_top_r(u, _var, r=r)  # [hidden, r]
+        basis[layer_name] = u_r
+        anchor_acts[layer_name] = (a @ u_r).detach()  # [n, r]
+
+    return {"basis": basis, "anchor_acts": anchor_acts}
 
 
 # ---------------------------------------------------------------------------
