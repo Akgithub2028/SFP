@@ -48,3 +48,13 @@ export interface PromResult {
   value?: [number, string];
   values?: [number, string][];
 }
+
+export interface LivePoint {
+  step: number;
+  loss: number;
+}
+
+export interface LiveSeries {
+  method: string;
+  points: LivePoint[];
+}

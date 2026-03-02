@@ -1,4 +1,4 @@
-import type { DetailEntry, Entry, PromResult } from "./types";
+import type { DetailEntry, Entry, LiveSeries, PromResult } from "./types";
 
 export const COLORS = [
   "#22c55e",
@@ -390,4 +390,185 @@ export function drawLossChart(
   ctx.textAlign = "center";
   ctx.textBaseline = "top";
   ctx.fillText("Training Loss (24h)", cw / 2, 8);
+}
+
+export function joinLiveSeries(
+  lossSeries: PromResult[],
+  stepSeries: PromResult[]
+): LiveSeries[] {
+  // Build a lookup: method+seed+timestamp → step
+  const stepMap = new Map<string, Map<number, number>>();
+  for (const s of stepSeries) {
+    const key = `${s.metric.method}|${s.metric.seed}`;
+    if (!stepMap.has(key)) stepMap.set(key, new Map());
+    const m = stepMap.get(key)!;
+    for (const [t, v] of s.values ?? []) {
+      m.set(t, parseFloat(v));
+    }
+  }
+
+  // For each loss series, look up the step at each timestamp
+  // Group by method, average across seeds at each step
+  const methodPoints = new Map<string, Map<number, { sum: number; n: number }>>();
+
+  for (const s of lossSeries) {
+    const method = s.metric.method;
+    const key = `${method}|${s.metric.seed}`;
+    const steps = stepMap.get(key);
+    if (!steps) continue;
+
+    if (!methodPoints.has(method)) methodPoints.set(method, new Map());
+    const mp = methodPoints.get(method)!;
+
+    for (const [t, v] of s.values ?? []) {
+      const loss = parseFloat(v);
+      const step = steps.get(t);
+      if (step == null || isNaN(loss)) continue;
+      const rounded = Math.round(step / 10) * 10; // bucket by 10 steps
+      const existing = mp.get(rounded);
+      if (existing) {
+        existing.sum += loss;
+        existing.n++;
+      } else {
+        mp.set(rounded, { sum: loss, n: 1 });
+      }
+    }
+  }
+
+  const result: LiveSeries[] = [];
+  for (const [method, points] of methodPoints) {
+    const sorted = [...points.entries()]
+      .sort((a, b) => a[0] - b[0])
+      .map(([step, { sum, n }]) => ({ step, loss: sum / n }));
+    if (sorted.length > 0) {
+      result.push({ method, points: sorted });
+    }
+  }
+  return result.sort((a, b) => a.method.localeCompare(b.method));
+}
+
+export function drawLiveTraining(
+  canvas: HTMLCanvasElement,
+  series: LiveSeries[],
+  stepsPerTask: number = 1000,
+  tasks: string[] = ["math", "code", "ifeval"]
+) {
+  const ctx = initCanvas(canvas);
+  const rect = canvas.getBoundingClientRect();
+  const cw = rect.width;
+  const ch = rect.height;
+  const pad = { top: 30, right: 100, bottom: 45, left: 55 };
+  const pw = cw - pad.left - pad.right;
+  const ph = ch - pad.top - pad.bottom;
+
+  const styles = getComputedStyle(document.documentElement);
+  const dimColor = styles.getPropertyValue("--text-dim").trim() || "#888";
+  const borderColor = styles.getPropertyValue("--border").trim() || "#2a2a2a";
+
+  if (series.length === 0) return;
+
+  // Determine ranges
+  const totalSteps = stepsPerTask * tasks.length;
+  const xMin = 0;
+  const xMax = Math.max(
+    totalSteps,
+    ...series.map((s) => s.points[s.points.length - 1]?.step ?? 0)
+  );
+
+  let vMin = Infinity;
+  let vMax = -Infinity;
+  for (const s of series) {
+    for (const p of s.points) {
+      vMin = Math.min(vMin, p.loss);
+      vMax = Math.max(vMax, p.loss);
+    }
+  }
+  if (!isFinite(vMin)) return;
+  const vRange = vMax - vMin || 1;
+  vMin = Math.max(0, vMin - vRange * 0.05);
+  vMax = vMax + vRange * 0.05;
+
+  // Y grid
+  const yLabels: number[] = [];
+  const yStep = (vMax - vMin) / 5;
+  for (let i = 0; i <= 5; i++) {
+    yLabels.push(vMin + yStep * i);
+  }
+  drawGrid(ctx, pad, cw, ch, yLabels);
+
+  // Task boundary vertical lines
+  ctx.setLineDash([4, 4]);
+  ctx.strokeStyle = borderColor;
+  ctx.lineWidth = 1;
+  for (let ti = 1; ti < tasks.length; ti++) {
+    const bx = pad.left + ((stepsPerTask * ti) / xMax) * pw;
+    ctx.beginPath();
+    ctx.moveTo(bx, pad.top);
+    ctx.lineTo(bx, pad.top + ph);
+    ctx.stroke();
+  }
+  ctx.setLineDash([]);
+
+  // Task labels at top
+  ctx.fillStyle = dimColor;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "top";
+  ctx.font = '10px "Berkeley Mono", "JetBrains Mono", monospace';
+  for (let ti = 0; ti < tasks.length; ti++) {
+    const mid = stepsPerTask * ti + stepsPerTask / 2;
+    const tx = pad.left + (mid / xMax) * pw;
+    ctx.fillText(tasks[ti], tx, pad.top + 4);
+  }
+  ctx.font = '11px "Berkeley Mono", "JetBrains Mono", monospace';
+
+  // X axis step labels
+  ctx.fillStyle = dimColor;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "top";
+  const xStepSize = stepsPerTask;
+  for (let x = 0; x <= xMax; x += xStepSize) {
+    const px = pad.left + (x / xMax) * pw;
+    ctx.fillText(x.toString(), px, ch - pad.bottom + 8);
+  }
+
+  // Axis label
+  ctx.fillText("Step", cw / 2, ch - 5);
+
+  // Draw series
+  for (let si = 0; si < series.length; si++) {
+    const s = series[si];
+    const color = COLORS[si % COLORS.length];
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+
+    let started = false;
+    for (const p of s.points) {
+      const x = pad.left + (p.step / xMax) * pw;
+      const y = pad.top + ph - ((p.loss - vMin) / (vMax - vMin)) * ph;
+      if (!started) {
+        ctx.moveTo(x, y);
+        started = true;
+      } else {
+        ctx.lineTo(x, y);
+      }
+    }
+    ctx.stroke();
+
+    // Label at last point
+    const last = s.points[s.points.length - 1];
+    if (last) {
+      const ly = pad.top + ph - ((last.loss - vMin) / (vMax - vMin)) * ph;
+      ctx.fillStyle = color;
+      ctx.textAlign = "left";
+      ctx.textBaseline = "middle";
+      ctx.fillText(s.method, pad.left + pw + 4, ly);
+    }
+  }
+
+  // Title
+  ctx.fillStyle = dimColor;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "top";
+  ctx.fillText("Training Loss vs Step", cw / 2, 8);
 }

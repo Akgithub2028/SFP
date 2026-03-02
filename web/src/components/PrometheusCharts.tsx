@@ -1,57 +1,58 @@
 "use client";
 
-import { useRef, useEffect, useState } from "react";
-import { promInstant, promRange } from "@/lib/api";
-import { drawLossChart } from "@/lib/charts";
-import type { PromResult } from "@/lib/types";
+import { useRef, useEffect, useState, useCallback } from "react";
+import { promRange } from "@/lib/api";
+import { joinLiveSeries, drawLiveTraining } from "@/lib/charts";
+import type { LiveSeries } from "@/lib/types";
+
+const POLL_INTERVAL = 30_000;
 
 export default function PrometheusCharts() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [available, setAvailable] = useState<boolean | null>(null);
-  const [lossSeries, setLossSeries] = useState<PromResult[]>([]);
+  const [series, setSeries] = useState<LiveSeries[]>([]);
 
-  useEffect(() => {
-    let cancelled = false;
+  const fetchData = useCallback(async () => {
+    const now = Math.floor(Date.now() / 1000);
+    const start = (now - 86400).toString();
+    const end = now.toString();
 
-    async function load() {
-      const up = await promInstant("up");
-      if (cancelled) return;
-      if (up.length === 0) {
-        setAvailable(false);
-        return;
-      }
-      setAvailable(true);
+    const [lossSeries, stepSeries] = await Promise.all([
+      promRange("sfp_train_loss", start, end, "30"),
+      promRange("sfp_train_step", start, end, "30"),
+    ]);
 
-      const now = Math.floor(Date.now() / 1000);
-      const start = (now - 86400).toString();
-      const end = now.toString();
-      const series = await promRange(
-        "sfp_train_loss",
-        start,
-        end,
-        "60"
-      );
-      if (!cancelled) setLossSeries(series);
-    }
-
-    load();
-    return () => {
-      cancelled = true;
-    };
+    if (lossSeries.length === 0 || stepSeries.length === 0) return;
+    setSeries(joinLiveSeries(lossSeries, stepSeries));
   }, []);
 
   useEffect(() => {
-    if (!canvasRef.current || lossSeries.length === 0) return;
-    drawLossChart(canvasRef.current, lossSeries);
-  }, [lossSeries]);
+    fetchData();
+    const id = setInterval(fetchData, POLL_INTERVAL);
+    return () => clearInterval(id);
+  }, [fetchData]);
 
-  if (available === null || !available || lossSeries.length === 0) {
-    return null;
-  }
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || series.length === 0) return;
+
+    const draw = () => drawLiveTraining(canvas, series);
+    draw();
+
+    const obs = new ResizeObserver(draw);
+    obs.observe(canvas);
+    return () => obs.disconnect();
+  }, [series]);
+
+  if (series.length === 0) return null;
 
   return (
     <section className="mb-8">
-      <h2 className="mb-3 text-lg font-semibold">Live Training</h2>
+      <div className="mb-3 flex items-baseline justify-between">
+        <h2 className="text-lg font-semibold">Live Training</h2>
+        <span className="text-xs" style={{ color: "var(--text-dim)" }}>
+          Updates every 30s · {series.length} method{series.length !== 1 ? "s" : ""}
+        </span>
+      </div>
       <canvas ref={canvasRef} className="chart chart-tall" />
     </section>
   );
