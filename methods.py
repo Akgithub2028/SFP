@@ -335,6 +335,9 @@ sfp_random_selection_loss.SETUP = "sfp"
 # ---------------------------------------------------------------------------
 
 
+SETUP_BUDGET_SECONDS = 120  # max wall-clock time for method setup (2 min)
+
+
 def method_setup(
     method_name: str, model, tokenizer, memory_buffers: dict, **kw
 ) -> dict:
@@ -342,43 +345,57 @@ def method_setup(
 
     Returns a state dict passed to the loss function each step.
     Dispatches on the loss function's .SETUP attribute.
+
+    Setup is budgeted: if it takes longer than SETUP_BUDGET_SECONDS the run
+    is aborted.  This prevents submissions from smuggling unbounded
+    computation (extra training, expensive searches) into the setup phase.
     """
+    import time as _time
+
     loss_fn = METHODS.get(method_name)
     setup_key = getattr(loss_fn, "SETUP", "none") if loss_fn else "none"
 
     if setup_key == "none":
         return {}
 
+    t0 = _time.monotonic()
+
     if setup_key == "distill":
         teacher = copy.deepcopy(model)
         teacher.eval()
         for p in teacher.parameters():
             p.requires_grad = False
-        return {"teacher": teacher}
-
-    if setup_key == "hidden_distill":
+        result = {"teacher": teacher}
+    elif setup_key == "hidden_distill":
         teacher = copy.deepcopy(model)
         teacher.eval()
         for p in teacher.parameters():
             p.requires_grad = False
         from features import get_layer_names
         layers = kw.get("layers") or get_layer_names(model)
-        return {"teacher": teacher, "layers": layers}
-
-    if setup_key == "orthogonal":
+        result = {"teacher": teacher, "layers": layers}
+    elif setup_key == "orthogonal":
         prev = {}
         for name, param in model.named_parameters():
             if "lora_B" in name:
                 prev[name] = param.detach().clone()
-        return {"prev_lora_weights": prev}
+        result = {"prev_lora_weights": prev}
+    elif setup_key == "sfp":
+        result = sfp_setup(model, tokenizer, memory_buffers, **kw)
+    elif setup_key == "sfp_grad":
+        result = sfp_grad_setup(model, tokenizer, memory_buffers, **kw)
+    else:
+        result = {}
 
-    if setup_key == "sfp":
-        return sfp_setup(model, tokenizer, memory_buffers, **kw)
-
-    if setup_key == "sfp_grad":
-        return sfp_grad_setup(model, tokenizer, memory_buffers, **kw)
-
-    return {}
+    elapsed = _time.monotonic() - t0
+    print(f"  method_setup({setup_key}) took {elapsed:.1f}s (budget: {SETUP_BUDGET_SECONDS}s)")
+    if elapsed > SETUP_BUDGET_SECONDS:
+        raise RuntimeError(
+            f"method_setup exceeded budget: {elapsed:.1f}s > {SETUP_BUDGET_SECONDS}s. "
+            f"Setup must complete within {SETUP_BUDGET_SECONDS}s to prevent "
+            f"smuggling unbounded computation into the setup phase."
+        )
+    return result
 
 
 def sfp_setup(

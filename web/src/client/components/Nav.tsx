@@ -20,6 +20,16 @@ export default function Nav() {
           </Link>
           <nav className="flex gap-4">
             <Link
+              to="/submit"
+              className="text-sm transition-colors"
+              style={{
+                color: pathname === "/submit" ? "var(--text)" : "var(--text-dim)",
+                fontWeight: pathname === "/submit" ? 600 : 400,
+              }}
+            >
+              Submit
+            </Link>
+            <Link
               to="/about"
               className="text-sm transition-colors"
               style={{

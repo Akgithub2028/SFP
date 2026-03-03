@@ -1,0 +1,21 @@
+# Leaderboard benchmark config (1 GPU, ~2h per ordering per seed)
+#
+# Design choices following best-practice CL benchmarks (CLEAR, CTrL):
+#   - 5 tasks (not 3) to expose compounding forgetting
+#   - 2000 steps/task for real forgetting pressure (not 1000)
+#   - Multiple task orderings tested by runs/leaderboard.sh
+#   - Results averaged across orderings AND seeds
+model: "Qwen/Qwen2.5-1.5B-Instruct"
+tasks: "math,code,ifeval,safety,domain"
+steps_per_task: 2000
+memory: 128
+batch_size: 8
+lr: 5.0e-5
+lora_rank: 64
+lora_alpha: 128
+seed: 42
+mode: fast
+pca_k: 128
+preserve_r: 32
+sfp_lambda: 0.1
+max_length: 512

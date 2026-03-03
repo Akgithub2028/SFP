@@ -22,18 +22,22 @@ export default function Home() {
 
       {/* ── Intro ── */}
       <section className="mb-4 text-sm leading-relaxed" style={{ color: "var(--text-dim)" }}>
-        <ul className="list-inside list-disc space-y-0.5">
-          <li>Fine-tune an LLM on tasks A, B, C in sequence — <strong style={{ color: "var(--text)" }}>how much of A does it forget?</strong></li>
-          <li>Every method below is a single loss function. Same model, same data, same compute.</li>
-          <li>The only variable is your training strategy. <Link to="/about" style={{ color: "var(--accent)" }}>Read more →</Link></li>
-        </ul>
+        <p className="mb-2">
+          Sequential fine-tuning of LLMs — alignment updates, domain adaptation, safety patches — causes
+          capability regressions on previously learned tasks
+          (<a href="https://arxiv.org/abs/2404.16789" style={{ color: "var(--accent)" }}>Wang et al., 2024</a>).
+          This benchmark measures the retention–plasticity tradeoff under controlled conditions:
+          same model, same data, same compute. The only variable is the training strategy.{" "}
+          <Link to="/about" style={{ color: "var(--accent)" }}>Motivation →</Link>
+        </p>
       </section>
 
       {/* ── Leaderboard + Scatter side by side ── */}
       <section className="mb-4 grid items-start gap-6 lg:grid-cols-2">
         <div>
+          <h2 className="mb-1 text-lg font-semibold">Leaderboard</h2>
           <span className="text-xs" style={{ color: "var(--text-dim)" }}>
-            Score = 0.6 × retention + 0.4 × plasticity
+            Score = harmonic mean of retention &amp; plasticity
           </span>
           <LeaderboardTable entries={entries} />
         </div>

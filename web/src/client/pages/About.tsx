@@ -228,9 +228,9 @@ export default function About() {
           </ul>
           <p className="mt-3">
             All other variables are controlled: model architecture, task data, training steps, LoRA
-            configuration, memory budget. The composite leaderboard score (0.6·retention + 0.4·plasticity)
-            is a convenience ranking; full Pareto frontiers and per-task breakdowns are reported for
-            scientific evaluation.
+            configuration, memory budget. The leaderboard score is the harmonic mean of retention and
+            plasticity (analogous to F1), penalising methods that sacrifice either axis.
+            Full Pareto frontiers and per-task breakdowns are reported for scientific evaluation.
           </p>
         </section>
 

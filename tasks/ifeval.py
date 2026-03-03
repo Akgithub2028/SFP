@@ -185,8 +185,7 @@ def evaluate(model, tokenizer, mode: str = "fast") -> dict[str, float]:
     n = 5 if mode == "smoke" else 100 if mode == "fast" else len(ds)
     ds = ds.select(range(n))
 
-    satisfied = 0
-    total = 0
+    per_example: list[float] = []
 
     for ex in tqdm(ds, desc="ifeval", total=n):
         prompt = ex["prompt"]
@@ -210,8 +209,7 @@ def evaluate(model, tokenizer, mode: str = "fast") -> dict[str, float]:
             _check_constraint(inst_id, kw, response)
             for inst_id, kw in zip(instructions, kwargs_list)
         )
-        if all_ok:
-            satisfied += 1
-        total += 1
+        per_example.append(1.0 if all_ok else 0.0)
 
-    return {"ifeval_accuracy": satisfied / total if total > 0 else 0.0}
+    accuracy = sum(per_example) / len(per_example) if per_example else 0.0
+    return {"ifeval_accuracy": accuracy, "ifeval_accuracy_scores": per_example}

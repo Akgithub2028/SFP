@@ -27,7 +27,10 @@ export default function ScatterPlot({ entries }: { entries: Entry[] }) {
 
   return (
     <div>
-      <h2 className="mb-2 text-lg font-semibold">Retention vs Plasticity</h2>
+      <h2 className="mb-1 text-lg font-semibold">Retention vs Plasticity</h2>
+      <p className="mb-2 text-xs" style={{ color: "var(--text-dim)" }}>
+        Retention = accuracy on old tasks · Plasticity = accuracy on new tasks
+      </p>
       <canvas ref={canvasRef} className="chart chart-tall" />
     </div>
   );

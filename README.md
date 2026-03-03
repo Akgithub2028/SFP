@@ -69,12 +69,34 @@ The benchmark evaluates continual fine-tuning across a sequence of tasks using s
 | Task | Training data | Evaluation | Primary metric |
 |------|--------------|------------|----------------|
 | Math | GSM8K | GSM8K test (exact match) | `math_accuracy` |
-| Code | MBPP | HumanEval pass@1 (execution) | `code_pass_at_1` |
+| Code | MBPP | HumanEval pass@1 (sandboxed execution) | `code_pass_at_1` |
 | Instruction following | Alpaca | IFEval (constraint satisfaction) | `ifeval_accuracy` |
 | Safety | HH-RLHF | Refusal rate × (1 − over-refusal rate) | `safety_score` |
-| Domain | PubMed | Perplexity + science QA | `domain_qa_accuracy` |
+| Domain | SciQ / PubMed | Perplexity + science QA | `domain_qa_accuracy` |
 
-**Metrics:** Average Accuracy (AA), Backward Transfer (BWT), Forward Transfer (FWT), per-task forgetting, retention-plasticity Pareto frontiers. The composite leaderboard score (0.6·retention + 0.4·plasticity) is a convenience ranking only.
+### Protocol
+
+Following best practices from CLEAR, CTrL, and Avalanche benchmarks:
+
+- **Zero-shot baseline** recorded before any training — the reference for distinguishing "the model forgot" from "the model was already bad"
+- **3 task orderings** tested (task order is the #1 variance source in CL; fixed-order benchmarks let methods overfit the sequence)
+- **3 seeds per ordering** (9 total runs per method)
+- **Setup budget**: method setup at each task boundary is capped at 120s wall-clock to prevent smuggling unbounded computation
+- **Code sandboxing**: HumanEval execution uses Docker isolation (no network, 256MB RAM) with OS-level fallback
+
+### Scoring
+
+The leaderboard score is the **harmonic mean** of retention and plasticity:
+
+```
+score = 2 · retention · plasticity / (retention + plasticity)
+```
+
+This is analogous to F1 = harmonic mean of precision and recall. Unlike a linear combination (which lets a do-nothing method score 0.6 from perfect retention alone), the harmonic mean requires performing well on *both* axes. If either metric falls below 0.1, the score is clamped to 0.
+
+Results also report **Pareto optimality** — whether a method is dominated on both axes by any other.
+
+**Metrics:** Average Accuracy (AA), Backward Transfer (BWT), Forward Transfer (FWT), per-task forgetting, retention-plasticity Pareto frontiers.
 
 **Baselines:** naive (no mitigation), replay, logit distillation (LwF), hidden-state distillation (PODNet-style), orthogonal LoRA, SFP, and ablation controls (random basis, random selection).
 
@@ -85,6 +107,7 @@ The benchmark evaluates continual fine-tuning across a sequence of tasks using s
 - **Task coverage.** H1 validation focuses on Math→Code. Different task pairs may exhibit different forgetting geometries.
 - **Bound tightness.** The constant *C* in the reduction is estimated empirically. If *C* is large or unstable across settings, the bound is vacuous.
 - **Layer selection.** Pre-registered probe layers at L/4, L/2, 3L/4 may not be optimal for all models/tasks.
+- **Task ordering.** We test 3 permutations; exhaustive testing of all 120 orderings (5!) is computationally prohibitive. The 3 chosen orderings rotate which task appears last, mitigating last-task bias in plasticity measurement.
 
 ## Repository structure
 
@@ -125,7 +148,7 @@ cp submissions/_example.py submissions/my_method.py
 python submit.py submissions/my_method.py
 ```
 
-Submissions are benchmarked on cloud GPUs (3 seeds, ~45 min) and results appear on the [leaderboard](https://sfp-leaderboard.pages.dev).
+Submissions are benchmarked on cloud GPUs across 3 task orderings × 3 seeds (9 runs, ~6h total). Results appear on the [leaderboard](https://sfp-leaderboard.pages.dev) with mean ± std across all runs and Pareto optimality status.
 
 ## References
 

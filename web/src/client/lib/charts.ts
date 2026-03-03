@@ -226,7 +226,7 @@ export function drawScatter(
   const rect = canvas.getBoundingClientRect();
   const cw = rect.width;
   const ch = rect.height;
-  const pad = { top: 20, right: 110, bottom: 45, left: 55 };
+  const pad = { top: 20, right: 110, bottom: 55, left: 70 };
   const pw = cw - pad.left - pad.right;
   const ph = ch - pad.top - pad.bottom;
 
@@ -280,9 +280,9 @@ export function drawScatter(
   // Axis labels
   ctx.fillStyle = dimColor;
   ctx.textAlign = "center";
-  ctx.fillText("Plasticity", cw / 2, ch - 5);
+  ctx.fillText("Plasticity", cw / 2, ch - pad.bottom + 24);
   ctx.save();
-  ctx.translate(12, ch / 2);
+  ctx.translate(14, ch / 2);
   ctx.rotate(-Math.PI / 2);
   ctx.fillText("Retention", 0, 0);
   ctx.restore();

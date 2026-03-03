@@ -184,9 +184,60 @@ def compute_retention_plasticity(
     return retention, plasticity
 
 
-def leaderboard_score(retention: float, plasticity: float) -> float:
-    """Composite leaderboard score. 0.6 * retention + 0.4 * plasticity."""
+def leaderboard_score_linear(retention: float, plasticity: float) -> float:
+    """Legacy linear composite score: 0.6 * retention + 0.4 * plasticity.
+
+    Deprecated in favour of harmonic-mean scoring. Kept for backwards compat.
+    """
     return 0.6 * retention + 0.4 * plasticity
+
+
+def leaderboard_score(retention: float, plasticity: float) -> float:
+    """Composite leaderboard score: harmonic mean of retention and plasticity.
+
+    Uses the same logic as F1 = 2·P·R/(P+R) — the harmonic mean penalises
+    methods that sacrifice either axis, unlike a linear combination which lets
+    a do-nothing method score 0.6 from perfect retention alone.
+
+    Degenerate-solution guard: if either retention or plasticity falls below
+    0.1 the score is clamped to 0.  This prevents methods that effectively
+    give up on one objective from appearing on the leaderboard.
+
+    Standard in continual-learning benchmarks (CLEAR, CTrL).
+    """
+    if retention < 0.1 or plasticity < 0.1:
+        return 0.0
+    return 2.0 * retention * plasticity / (retention + plasticity)
+
+
+def compute_pareto_dominance(
+    entries: list[tuple[str, float, float]],
+) -> list[bool]:
+    """Determine which methods are Pareto-optimal on (retention, plasticity).
+
+    Args:
+        entries: list of (name, retention, plasticity) tuples.
+
+    Returns:
+        List of booleans, same length as *entries*.  True means the method is
+        Pareto-optimal (no other method is ≥ on both axes and strictly > on at
+        least one).
+    """
+    n = len(entries)
+    pareto = [True] * n
+    for i in range(n):
+        if not pareto[i]:
+            continue
+        _, ri, pi = entries[i]
+        for j in range(n):
+            if i == j:
+                continue
+            _, rj, pj = entries[j]
+            # j dominates i if j >= i on both and strictly > on at least one
+            if rj >= ri and pj >= pi and (rj > ri or pj > pi):
+                pareto[i] = False
+                break
+    return pareto
 
 
 # ── Display ─────────────────────────────────────────────────────────────
@@ -250,9 +301,14 @@ def print_results_table(results: dict, forgetting: dict | None = None) -> None:
     print(sep)
 
 
-def _print_leaderboard_line(name: str, retention: float, plasticity: float) -> None:
+def _print_leaderboard_line(
+    name: str, retention: float, plasticity: float, *, pareto: bool | None = None,
+) -> None:
     score = leaderboard_score(retention, plasticity)
-    print(f"| {name:<20} | {retention:.4f} | {plasticity:.4f} | {score:.4f} |")
+    line = f"| {name:<20} | {retention:.4f} | {plasticity:.4f} | {score:.4f} |"
+    if pareto is not None:
+        line += f" {'✓' if pareto else ' ':>6} |"
+    print(line)
 
 
 # ── Run directory I/O ───────────────────────────────────────────────────
@@ -316,8 +372,8 @@ def main() -> None:
             print(f"Leaderboard: {leaderboard_score(retention, plasticity):.4f}")
 
     elif args.aggregate:
-        print(f"| {'Run':<20} | {'Ret':>7} | {'Plas':>7} | {'AA':>7} | {'Score':>7} |")
-        print(f"|{'-'*22}|{'-'*9}|{'-'*9}|{'-'*9}|{'-'*9}|")
+        # Collect all runs first so we can compute Pareto dominance
+        rows = []
         for run_dir in args.aggregate:
             history = _load_run_history(run_dir)
             if not history:
@@ -325,8 +381,17 @@ def main() -> None:
             run_name = os.path.basename(os.path.normpath(run_dir))
             retention, plasticity = compute_retention_plasticity(history, args.tasks)
             aa = compute_average_accuracy(history, args.tasks)
-            score = leaderboard_score(retention, plasticity)
-            print(f"| {run_name:<20} | {retention:.4f} | {plasticity:.4f} | {aa:.4f} | {score:.4f} |")
+            rows.append((run_name, retention, plasticity, aa))
+
+        if rows:
+            entries = [(name, ret, plas) for name, ret, plas, _ in rows]
+            pareto = compute_pareto_dominance(entries)
+
+            print(f"| {'Run':<20} | {'Ret':>7} | {'Plas':>7} | {'AA':>7} | {'Score':>7} | {'Pareto':>6} |")
+            print(f"|{'-'*22}|{'-'*9}|{'-'*9}|{'-'*9}|{'-'*9}|{'-'*8}|")
+            for (name, ret, plas, aa), is_pareto in zip(rows, pareto):
+                score = leaderboard_score(ret, plas)
+                print(f"| {name:<20} | {ret:.4f} | {plas:.4f} | {aa:.4f} | {score:.4f} | {'✓' if is_pareto else ' ':>6} |")
 
     else:
         parser.print_help()

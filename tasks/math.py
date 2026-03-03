@@ -42,8 +42,7 @@ def evaluate(model, tokenizer, mode: str = "fast") -> dict[str, float]:
     n = 5 if mode == "smoke" else 200 if mode == "fast" else len(ds)
     ds = ds.select(range(n))
 
-    correct = 0
-    total = 0
+    per_example: list[float] = []
 
     for ex in tqdm(ds, desc="math", total=n):
         question = ex["question"]
@@ -66,9 +65,7 @@ def evaluate(model, tokenizer, mode: str = "fast") -> dict[str, float]:
         gen_text = tokenizer.decode(gen_ids, skip_special_tokens=True)
 
         pred = _extract_number(gen_text)
-        if pred is not None and pred == gold:
-            correct += 1
-        total += 1
+        per_example.append(1.0 if pred is not None and pred == gold else 0.0)
 
-    accuracy = correct / total if total > 0 else 0.0
-    return {"math_accuracy": accuracy}
+    accuracy = sum(per_example) / len(per_example) if per_example else 0.0
+    return {"math_accuracy": accuracy, "math_accuracy_scores": per_example}

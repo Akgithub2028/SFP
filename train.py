@@ -219,6 +219,25 @@ if __name__ == "__main__":
     t0 = time.time()
 
     # -----------------------------------------------------------------------
+    # Zero-shot baseline — eval BEFORE any training
+    # -----------------------------------------------------------------------
+    # Every serious CL benchmark reports zero-shot performance as the
+    # reference point.  Without it you can't tell if "retention = 0.4" means
+    # the model forgot a lot or was already bad.
+
+    print("\n--- Zero-shot baseline (before any training) ---")
+    model.eval()
+    zero_shot = evaluate_all(model, tokenizer, tasks, mode=cfg["mode"])
+    print_results_table(zero_shot)
+    model.train()
+
+    # Persist zero-shot results
+    zs_path = os.path.join(cfg["out_dir"], "zero_shot.json")
+    with open(zs_path, "w") as f:
+        json.dump(zero_shot, f, indent=2, default=str)
+    print(f"Zero-shot baseline saved to {zs_path}\n")
+
+    # -----------------------------------------------------------------------
     # Continual training loop
     # -----------------------------------------------------------------------
 
@@ -384,6 +403,7 @@ if __name__ == "__main__":
         "config": cfg,
         "method": cfg["method"],
         "history": results_history,
+        "zero_shot": zero_shot,
         "retention": retention,
         "plasticity": plasticity,
         "score": score,
