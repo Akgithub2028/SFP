@@ -411,6 +411,65 @@ def _run_paper(base_dir: str) -> None:
     print("Paper figures generated.")
 
 
+def _run_order_sensitivity(run_dirs: list[str]) -> None:
+    """Analyze order sensitivity: mean ± std of metrics across task orderings per method."""
+    methods: dict[str, list[dict]] = {}
+    for d in run_dirs:
+        try:
+            r = _load_results_json(d)
+        except FileNotFoundError:
+            print(f"Warning: no results.json in {d}, skipping")
+            continue
+        method = r.get("method", Path(d).name.split("_")[0])
+        methods.setdefault(method, []).append(r)
+
+    if not methods:
+        print("No results found.")
+        return
+
+    print("=" * 60)
+    print("ORDER SENSITIVITY ANALYSIS")
+    print("=" * 60)
+
+    method_scores: dict[str, dict[str, tuple[float, float]]] = {}
+    for method, runs in sorted(methods.items()):
+        retentions = [r.get("retention", 0.0) for r in runs]
+        plasticities = [r.get("plasticity", 0.0) for r in runs]
+        leaderboards = [r.get("leaderboard", 0.0) for r in runs]
+
+        ret_mean, ret_std = float(np.mean(retentions)), float(np.std(retentions))
+        pla_mean, pla_std = float(np.mean(plasticities)), float(np.std(plasticities))
+        lb_mean, lb_std = float(np.mean(leaderboards)), float(np.std(leaderboards))
+
+        method_scores[method] = {
+            "retention": (ret_mean, ret_std),
+            "plasticity": (pla_mean, pla_std),
+            "leaderboard": (lb_mean, lb_std),
+        }
+
+        print(f"\n{method} ({len(runs)} orderings):")
+        print(f"  retention   : {ret_mean:.4f} ± {ret_std:.4f}")
+        print(f"  plasticity  : {pla_mean:.4f} ± {pla_std:.4f}")
+        print(f"  leaderboard : {lb_mean:.4f} ± {lb_std:.4f}")
+
+    # Check ranking stability across leaderboard score
+    if len(method_scores) >= 2:
+        print("\n" + "-" * 60)
+        ranked = sorted(method_scores.items(), key=lambda x: x[1]["leaderboard"][0], reverse=True)
+        print("Ranking by leaderboard (mean):")
+        for i, (m, scores) in enumerate(ranked, 1):
+            mean, std = scores["leaderboard"]
+            print(f"  {i}. {m}: {mean:.4f} ± {std:.4f}")
+
+        # Check if top method's mean - std > second's mean + std (non-overlapping)
+        top_m, top_s = ranked[0][1]["leaderboard"]
+        sec_m, sec_s = ranked[1][1]["leaderboard"]
+        if top_m - top_s > sec_m + sec_s:
+            print(f"\nRanking is STABLE: {ranked[0][0]} > {ranked[1][0]} (non-overlapping ±1σ)")
+        else:
+            print(f"\nRanking is UNSTABLE: {ranked[0][0]} vs {ranked[1][0]} have overlapping ±1σ")
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="SFP analysis and plotting")
     parser.add_argument("--run", type=str, help="Single run analysis")
@@ -418,6 +477,9 @@ if __name__ == "__main__":
     parser.add_argument("--gate1", type=str, help="Gate 1: drift → forgetting regression")
     parser.add_argument("--gate2", type=str, help="Gate 2: Pareto dominance check")
     parser.add_argument("--paper", type=str, help="Generate all paper figures")
+    parser.add_argument(
+        "--order-sensitivity", nargs="+", help="Order sensitivity: mean ± std across orderings"
+    )
     args = parser.parse_args()
 
     if args.run:
@@ -435,5 +497,7 @@ if __name__ == "__main__":
         _run_gate2(args.gate2)
     elif args.paper:
         _run_paper(args.paper)
+    elif args.order_sensitivity:
+        _run_order_sensitivity(args.order_sensitivity)
     else:
         parser.print_help()

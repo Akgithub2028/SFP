@@ -88,17 +88,6 @@ _MATH_QUESTIONS = [
     ("What is 9 * 9?", "81"),
     ("What is 256 / 16?", "16"),
     ("What is 50 + 75?", "125"),
-    ("What is 12 * 11?", "132"),
-    ("What is 1000 - 347?", "653"),
-    ("What is 25 * 4?", "100"),
-    ("What is 360 / 9?", "40"),
-    ("What is 17 + 38?", "55"),
-    ("What is 7 * 13?", "91"),
-    ("What is 500 - 123?", "377"),
-    ("What is 15 * 8?", "120"),
-    ("What is 225 / 15?", "15"),
-    ("What is 33 + 67?", "100"),
-    ("What is 6 * 14?", "84"),
 ]
 
 
@@ -120,6 +109,33 @@ def eval_math_quick(model, tokenizer, device: str) -> float:
         if gold in text:
             correct += 1
     return correct / len(_MATH_QUESTIONS)
+
+
+@torch.no_grad()
+def eval_math_perplexity(
+    model, tokenizer, dataset: list[dict], device: str, max_samples: int = 50
+) -> float:
+    """Average cross-entropy loss on math examples (perplexity-based forgetting proxy).
+
+    Works even when exact-match accuracy is 0% (e.g. SmolLM2-135M), because
+    the loss is continuous and captures how well the model *models* the math
+    distribution, not whether it can generate correct answers.
+    """
+    model.eval()
+    samples = dataset[:max_samples]
+    total_loss = 0.0
+    n = 0
+    for i in range(0, len(samples), 8):
+        chunk = samples[i : i + 8]
+        batch = data.get_batch(chunk, batch_size=len(chunk), tokenizer=tokenizer, device=device)
+        out = model(
+            input_ids=batch["input_ids"],
+            attention_mask=batch["attention_mask"],
+            labels=batch["labels"],
+        )
+        total_loss += out.loss.item() * len(chunk)
+        n += len(chunk)
+    return total_loss / n if n > 0 else 0.0
 
 
 # ---------------------------------------------------------------------------
@@ -150,7 +166,16 @@ def plot_h1_results(records: list[dict], out_dir: str) -> None:
     import matplotlib.pyplot as plt
 
     steps = np.array([r["step"] for r in records])
-    forgetting = np.array([r["forgetting"] for r in records])
+
+    # Use perplexity-based forgetting as primary metric; fall back to exact-match
+    forgetting_ppl = np.array([r.get("forgetting_ppl", 0.0) for r in records])
+    forgetting_acc = np.array([r["forgetting"] for r in records])
+    if np.any(forgetting_ppl > 0):
+        forgetting = forgetting_ppl
+        forget_label = "Forgetting (Δ loss)"
+    else:
+        forgetting = forgetting_acc
+        forget_label = "Forgetting (acc drop)"
 
     # Aggregate drift across layers (mean)
     layers = [k for k in records[0] if k.startswith("drift_")]
@@ -215,7 +240,7 @@ def plot_h1_results(records: list[dict], out_dir: str) -> None:
             ax.plot(x_line, y_line, "k-", linewidth=1.5)
 
         ax.set_xlabel(f"{dtype} drift")
-        ax.set_ylabel("Forgetting")
+        ax.set_ylabel(forget_label)
         ax.set_title(f"R² = {r2:.3f}")
         ax.annotate(
             f"R² = {r2:.3f}",
@@ -237,7 +262,7 @@ def plot_h1_results(records: list[dict], out_dir: str) -> None:
     fig2, ax2 = plt.subplots(figsize=(5, 3))
     ax2.plot(steps, forgetting, "o-", markersize=4)
     ax2.set_xlabel("Training step")
-    ax2.set_ylabel("Forgetting (accuracy drop)")
+    ax2.set_ylabel(forget_label)
     ax2.set_title("Math forgetting during code training")
     fig2.tight_layout()
     fig2.savefig(os.path.join(out_dir, "fig_forgetting_trajectory.pdf"), bbox_inches="tight")
@@ -308,7 +333,9 @@ def main():
     print("\nCollecting anchor activations...")
     model.eval()
     baseline_acc = eval_math_quick(model, tokenizer, device)
+    baseline_ppl = eval_math_perplexity(model, tokenizer, memory_set, device)
     print(f"  Baseline math accuracy: {baseline_acc:.2%}")
+    print(f"  Baseline math loss:     {baseline_ppl:.4f}")
 
     anchor_acts = collect_activations(model, memory_set, tokenizer, layer_names)
     # anchor_acts: {layer_name: [n, hidden]}
@@ -338,7 +365,9 @@ def main():
     records.append({
         "step": 0,
         "forgetting": 0.0,
+        "forgetting_ppl": 0.0,
         "math_acc": baseline_acc,
+        "math_ppl": baseline_ppl,
         **{f"drift_top_r_{ln}": 0.0 for ln in layer_names},
         **{f"drift_random_r_{ln}": 0.0 for ln in layer_names},
         **{f"drift_bottom_r_{ln}": 0.0 for ln in layer_names},
@@ -374,12 +403,20 @@ def main():
             # Evaluate forgetting
             current_acc = eval_math_quick(model, tokenizer, device)
             forgetting = max(0.0, baseline_acc - current_acc)
+            current_ppl = eval_math_perplexity(model, tokenizer, memory_set, device)
+            forgetting_ppl = max(0.0, current_ppl - baseline_ppl)
 
             # Collect current activations
             current_acts = collect_activations(model, memory_set, tokenizer, layer_names)
 
             # Compute drifts per layer
-            record = {"step": step, "forgetting": forgetting, "math_acc": current_acc}
+            record = {
+                "step": step,
+                "forgetting": forgetting,
+                "forgetting_ppl": forgetting_ppl,
+                "math_acc": current_acc,
+                "math_ppl": current_ppl,
+            }
 
             layer_drifts = {"top_r": [], "random_r": [], "bottom_r": [], "total": []}
             for ln in layer_names:
@@ -421,7 +458,8 @@ def main():
             elapsed = time.time() - t0
             print(
                 f"  [ckpt step={step}] acc={current_acc:.2%} "
-                f"forget={forgetting:.3f} "
+                f"ppl={current_ppl:.4f} "
+                f"forget={forgetting:.3f} forget_ppl={forgetting_ppl:.4f} "
                 f"drift_top={record['drift_top_r']:.4f} "
                 f"drift_rand={record['drift_random_r']:.4f} "
                 f"drift_total={record['drift_total']:.4f} "
@@ -437,6 +475,7 @@ def main():
             {
                 "config": vars(args),
                 "baseline_accuracy": baseline_acc,
+                "baseline_perplexity": baseline_ppl,
                 "layer_names": layer_names,
                 "records": records,
             },
