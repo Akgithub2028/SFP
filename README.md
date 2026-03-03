@@ -23,29 +23,29 @@ python train.py --method sfp --memory 128
 
 ## The idea
 
-When you fine-tune an LLM on Task A (math) then Task B (code), it forgets math. This is **catastrophic forgetting** — one of the biggest unsolved problems in deploying LLMs that learn over time.
+When you fine-tune an LLM on Task A (math) then Task B (code), it forgets math. This is **catastrophic forgetting** — a key obstacle in deploying LLMs that learn sequentially (alignment updates, domain adaptation, safety patches, personalization).
 
-We investigate a specific hypothesis about why:
+We investigate a specific, falsifiable hypothesis:
 
-> **H1:** Forgetting is low-dimensional. Activation drift in a small feature subspace (~32 dimensions per layer) predicts forgetting on old tasks.
+> **H1:** Measurable regressions are predictable from activation drift in a small subspace. Drift in the top-*r* PCA dimensions (~32 per layer) at mid-depth layers predicts old-task accuracy drops (R² ≥ 0.6); drift in random-*r* dimensions does not.
 
-If true, you don't need to preserve the entire model — just the right features. That's **Sparse Feature Preservation (SFP)**: find the important activation directions via PCA + ablation, then add a loss term that anchors only those during new task training. ~40 lines of code.
+If supported, you don't need to preserve the entire model — just the right features. That's **Sparse Feature Preservation (SFP)**: find the important activation directions via PCA + ablation, then add a loss term that anchors only those during new task training. ~40 lines of code.
 
-### The reduction
+### What the formalization proves
 
-We formalize this as a reduction in [Lean 4](lean-sfp/):
+We formalize the mathematical reduction in [Lean 4](lean-sfp/):
 
 ```
-IF   forgetting ≤ C · ‖P_W(Δa)‖        (H1 — empirical, validated by experiments)
+IF   forgetting ≤ C · ‖P_W(Δa)‖        (H1 — empirical, tested by experiments)
 AND  L_pres ≤ δ                          (SFP — minimize the preservation loss)
-THEN forgetting ≤ C · √δ                (proved in Lean, no sorry)
+THEN forgetting ≤ C · √δ                (verified in Lean, no sorry)
 ```
 
-**The only unverified assumption is H1.** Everything else — the loss bounds subspace drift, gradients stay orthogonal to preserved features, the Pythagorean decomposition into stability vs. plasticity — is [formally verified](lean-sfp/SFP/Paper/Reduction.lean). The experiments exist to validate H1.
+Lean verifies the *mathematical implication* — a chain of inequalities in an abstract inner product space. It does not verify the empirical premises: whether H1 holds for real models, whether C is small enough to be non-vacuous, or whether training achieves a small δ. The experiments exist to test those.
+
+What the formalization buys you: no hand-wavy "therefore" steps, explicit assumptions, and machine-checked algebra. What it doesn't buy you: guarantees about real LLM training dynamics.
 
 ### The research loop
-
-The project runs a 4-stage loop:
 
 ```
   HYPOTHESIZE ──▶ EXPERIMENT ──▶ FORMALIZE ──▶ WRITE UP
@@ -60,13 +60,20 @@ The project runs a 4-stage loop:
 
 Gate rule: never formalize a claim that hasn't survived an experiment.
 
+### Threats to validity
+
+- **Model scale**: primary experiments use small models (135M–1.5B) with LoRA. Low-rank adapters constrain updates to low-dimensional subspaces, which could make "low-dimensional forgetting" more likely by construction. Full fine-tuning and larger models are needed to confirm H1 generalizes.
+- **Task order**: results may be sensitive to curriculum ordering. We test multiple permutations but a single benchmark cannot cover all settings.
+- **Benchmark coverage**: GSM8K, HumanEval, IFEval, safety, and domain QA are a practical but limited slice of LLM capabilities.
+- **Leaderboard score**: the composite 0.6·retention + 0.4·plasticity is a convenience ranking, not a scientific metric. Full Pareto frontiers and per-task breakdowns are the real results.
+
 ## File structure
 
 ```
 .
 ├── forget.py           # 5-minute demo: watch forgetting happen
 ├── train.py            # Continual training loop (~300 lines)
-├── evaluate.py         # Eval harness + forgetting metrics
+├── evaluate.py         # Eval harness + forgetting metrics (AA, BWT, FWT)
 ├── analyze.py          # Drift analysis, R² regression, Pareto plots
 ├── methods.py          # All methods: naive, replay, distill, sfp
 ├── features.py         # Activation hooks, PCA subspace, importance

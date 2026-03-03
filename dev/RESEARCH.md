@@ -4,7 +4,9 @@
 
 ## Problem
 
-LLMs are continually fine-tuned: new domains, new alignment, new capabilities. Sequential fine-tuning causes **catastrophic forgetting** — performance on earlier tasks degrades as new tasks are trained.
+LLMs are continually updated: alignment tuning, safety patches, domain adaptation, personalization. Sequential updates cause **capability regressions** — performance on previously validated behaviors degrades. In the continual learning literature this is called catastrophic forgetting.
+
+This is distinct from the "retrain from scratch" paradigm most production LLM pipelines use. We focus on the setting where a model is updated *in place* over a sequence of tasks — relevant for personalization, on-device adaptation, and rapid iteration cycles where full retraining is too expensive.
 
 ## Why forgetting happens
 
@@ -24,9 +26,10 @@ None answer: **where inside the model does forgetting actually happen?**
 
 ## Our hypothesis
 
-**H1**: Forgetting is **low-dimensional** — concentrated in a small feature subspace.
-- Drift in top-r feature coordinates predicts forgetting (R² ≥ 0.6).
-- Drift in random-r coordinates does not.
+**H1**: Measurable regressions are **predictable from low-dimensional activation drift**.
+- Drift in top-r PCA coordinates at mid-depth layers predicts old-task accuracy drops (R² ≥ 0.6).
+- Drift in random-r coordinates does not (R² ≈ 0).
+- This must hold after controlling for total drift ‖Δa‖ (to rule out "drift = drift" confound).
 
 **H2**: Preserving only high-importance features improves the stability-plasticity Pareto frontier.
 - SFP dominates ≥2 baselines at small memory budgets.
@@ -62,11 +65,19 @@ That's it. ~40 lines of code.
 
 ## Risks
 
-1. **Forgetting not low-dimensional** → try different layers/basis; report negative result
-2. **Effect disappears at scale** → validate on mid-scale first
-3. **"Just distillation" criticism** → random-basis and random-selection controls prove PCA + importance matter
+1. **LoRA confound**: Low-rank adapters constrain updates to a low-dimensional subspace by construction. "Forgetting is low-dimensional" might be an artifact of the parameter-efficient training, not a property of forgetting. *Mitigation*: validate H1 under full fine-tuning at least once.
+2. **Vacuous bound via C**: The reduction theorem gives forgetting ≤ C·√δ but C is estimated empirically. If C is huge or unstable, the bound is meaningless. *Mitigation*: report C distributions across seeds/tasks; show they're bounded and stable.
+3. **Layer cherry-picking**: Testing H1 at depth/4, depth/2, 3·depth/4 and reporting the best result is p-hacking. *Mitigation*: pre-register probe layers or report all layers.
+4. **Forgetting not low-dimensional** → try different layers/basis; report negative result honestly.
+5. **Effect disappears at scale** → validate on mid-scale (1.5B) first.
+6. **"Just distillation" criticism** → random-basis and random-selection controls prove PCA + importance matter beyond generic representation anchoring.
 
 ## Novelty wedge
 
 The general idea "anchor internal activations" is NOT new (PODNet exists).
-What's new: (1) feature-like basis (PCA/SAE), (2) evidence that only a *small* set matters, (3) LLM continual instruction-tuning setting with strong baselines, (4) mechanistic link to interpretability.
+What's new:
+1. **Selective** preservation: evidence that a small subset (~32 dims/layer) suffices, with ablation controls showing PCA + importance ranking outperform random subspaces.
+2. **Falsifiable measurement protocol**: the H1 regression test is a reproducible claim others can validate or falsify on their own models/tasks.
+3. **LLM continual instruction-tuning** setting with strong baselines (not just vision CL benchmarks).
+4. **Formal verification** of the mathematical reduction — prevents hand-wavy algebra, makes assumptions explicit (not a "guarantee").
+5. Potential **mechanistic link** to interpretability (if SAE features outperform PCA — future work).
