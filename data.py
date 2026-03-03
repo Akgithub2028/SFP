@@ -134,10 +134,40 @@ def load_task(
             for row in ds
         ]
     elif task_name == "ifeval":
-        examples = _generate_ifeval()
+        try:
+            ds = load_dataset("tatsu-lab/alpaca", split="train")
+            examples = [
+                {
+                    "input": row["instruction"] + ("\n" + row["input"] if row["input"] else ""),
+                    "output": row["output"],
+                    "task_id": "ifeval",
+                }
+                for row in ds
+            ]
+        except Exception:
+            examples = _generate_ifeval()  # fallback for offline mode
         examples = examples[400:] if split == "test" else examples[:400]
     elif task_name == "safety":
-        examples = _generate_safety()
+        try:
+            ds = load_dataset("Anthropic/hh-rlhf", split="train")
+            examples = []
+            for row in ds:
+                chosen = row["chosen"]
+                parts = chosen.split("\n\nAssistant: ", 1)
+                if len(parts) == 2:
+                    human_part = parts[0].replace("\n\nHuman: ", "", 1).strip()
+                    assistant_part = parts[1].strip()
+                    examples.append({
+                        "input": human_part,
+                        "output": assistant_part,
+                        "task_id": "safety",
+                    })
+                if len(examples) >= 2000:
+                    break
+            if len(examples) < 100:
+                raise ValueError("Too few examples")
+        except Exception:
+            examples = _generate_safety()  # fallback for offline mode
         examples = examples[300:] if split == "test" else examples[:300]
     elif task_name == "domain":
         try:

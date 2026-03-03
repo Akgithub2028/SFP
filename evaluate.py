@@ -23,7 +23,7 @@ PRIMARY_METRIC = {
     "math": "math_accuracy",
     "code": "code_pass_at_1",
     "ifeval": "ifeval_accuracy",
-    "safety": "refusal_rate",
+    "safety": "safety_score",
     "domain": "domain_qa_accuracy",
 }
 
@@ -81,6 +81,33 @@ def compute_bwt(results_history: list[dict]) -> float:
         return 0.0
     # Negative BWT = forgetting occurred; we report magnitude here
     return sum(forgetting.values()) / len(forgetting)
+
+
+def compute_average_accuracy(results_history: list[dict], task_names: list[str]) -> float:
+    """Average Accuracy (AA): mean of primary metrics across all tasks after all training."""
+    if not results_history:
+        return 0.0
+    final = results_history[-1]
+    scores = []
+    for t in task_names:
+        m = PRIMARY_METRIC.get(t, "")
+        if t in final and m in final[t]:
+            scores.append(final[t][m])
+    return sum(scores) / len(scores) if scores else 0.0
+
+
+def compute_forward_transfer(results_history: list[dict], task_names: list[str]) -> float:
+    """Forward Transfer (FWT): average first-seen accuracy (proxy — actual FWT needs zero-shot baselines)."""
+    if len(results_history) < 2 or len(task_names) < 2:
+        return 0.0
+    scores = []
+    for i in range(1, len(task_names)):
+        if i < len(results_history):
+            t = task_names[i]
+            m = PRIMARY_METRIC.get(t, "")
+            if t in results_history[i] and m in results_history[i][t]:
+                scores.append(results_history[i][t][m])
+    return sum(scores) / len(scores) if scores else 0.0
 
 
 def compute_retention_plasticity(
@@ -218,6 +245,8 @@ def main() -> None:
 
         forgetting = compute_forgetting(history)
         bwt = compute_bwt(history)
+        aa = compute_average_accuracy(history, args.tasks)
+        fwt = compute_forward_transfer(history, args.tasks)
         retention, plasticity = compute_retention_plasticity(history, args.tasks)
 
         if args.format == "leaderboard":
@@ -225,20 +254,22 @@ def main() -> None:
             _print_leaderboard_line(run_name, retention, plasticity)
         else:
             print_results_table(history[-1], forgetting=forgetting)
-            print(f"\nBWT: {bwt:.4f}")
+            print(f"\nBWT: {bwt:.4f}  AA: {aa:.4f}  FWT: {fwt:.4f}")
             print(f"Retention: {retention:.4f}  Plasticity: {plasticity:.4f}")
             print(f"Leaderboard: {leaderboard_score(retention, plasticity):.4f}")
 
     elif args.aggregate:
-        print(f"| {'Run':<20} | {'Ret':>7} | {'Plas':>7} | {'Score':>7} |")
-        print(f"|{'-'*22}|{'-'*9}|{'-'*9}|{'-'*9}|")
+        print(f"| {'Run':<20} | {'Ret':>7} | {'Plas':>7} | {'AA':>7} | {'Score':>7} |")
+        print(f"|{'-'*22}|{'-'*9}|{'-'*9}|{'-'*9}|{'-'*9}|")
         for run_dir in args.aggregate:
             history = _load_run_history(run_dir)
             if not history:
                 continue
             run_name = os.path.basename(os.path.normpath(run_dir))
             retention, plasticity = compute_retention_plasticity(history, args.tasks)
-            _print_leaderboard_line(run_name, retention, plasticity)
+            aa = compute_average_accuracy(history, args.tasks)
+            score = leaderboard_score(retention, plasticity)
+            print(f"| {run_name:<20} | {retention:.4f} | {plasticity:.4f} | {aa:.4f} | {score:.4f} |")
 
     else:
         parser.print_help()
