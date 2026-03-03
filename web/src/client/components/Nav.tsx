@@ -16,7 +16,7 @@ export default function Nav() {
     >
       <div className="flex items-baseline justify-between">
         <div className="flex items-baseline gap-6">
-          <Link to="/" className="hover:no-underline">
+          <Link to="/" className="hover:no-underline" onClick={(e) => { if (pathname === "/") e.preventDefault(); }}>
             <h1
               className="text-2xl font-bold tracking-tight"
               style={{ color: "var(--text)" }}
@@ -29,6 +29,7 @@ export default function Nav() {
               <Link
                 key={link.href}
                 to={link.href}
+                onClick={(e) => { if (pathname === link.href) e.preventDefault(); }}
                 className="text-sm transition-colors"
                 style={{
                   color:
