@@ -271,6 +271,151 @@ def plot_h1_results(records: list[dict], out_dir: str) -> None:
 
 
 # ---------------------------------------------------------------------------
+# R-sweep diagnostic
+# ---------------------------------------------------------------------------
+
+
+def sweep_r_diagnostic(
+    records: list[dict],
+    anchor_acts: dict[str, torch.Tensor],
+    final_acts: dict[str, torch.Tensor],
+    pca_bases: dict[str, torch.Tensor],
+    pca_variances: dict[str, torch.Tensor],
+    layer_names: list[str],
+    out_dir: str,
+    pca_k: int,
+) -> None:
+    """Sweep over r values to diagnose whether PCA basis or dimensionality is the issue.
+
+    For each r in [1, 2, 4, 8, 16, 32, 64, min(pca_k, hidden_dim)]:
+      - Compute R²(top-r PCA drift, forgetting) using all checkpoint records
+      - Compute cumulative variance explained by top-r PCA dims
+
+    If variance explained is high but R² is low → PCA is the wrong basis.
+    If both track together → forgetting IS in high-variance dirs, r was too small.
+
+    Per-checkpoint top-r drift is approximated by scaling the stored per-layer
+    total drift by the fraction captured in top-r PCA dims at the final checkpoint.
+    This assumes the spectral profile of drift is roughly stable across checkpoints.
+    """
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    hidden_dim = pca_bases[layer_names[0]].shape[0]
+    max_r = min(pca_k, hidden_dim)
+    r_values = sorted(set(
+        r for r in [1, 2, 4, 8, 16, 32, 64, max_r] if r <= max_r
+    ))
+
+    # Get forgetting array from records
+    forgetting_ppl = np.array([r.get("forgetting_ppl", 0.0) for r in records])
+    forgetting_acc = np.array([r["forgetting"] for r in records])
+    forgetting = forgetting_ppl if np.any(forgetting_ppl > 0) else forgetting_acc
+
+    # Total variance per layer for normalization
+    total_variance = {
+        ln: float(pca_variances[ln].sum().item()) for ln in layer_names
+    }
+
+    # Precompute per-layer drift fraction for each r at the final checkpoint
+    # frac[ln][r] = (top-r PCA drift) / (total drift) at final checkpoint
+    drift_frac = {}
+    for ln in layer_names:
+        a_anchor = anchor_acts[ln].float()
+        a_final = final_acts[ln].float()
+        diff = a_final - a_anchor
+        total = float(torch.mean(torch.sum(diff**2, dim=1)).item())
+        U = pca_bases[ln]
+        fracs = {}
+        for r in r_values:
+            proj = diff @ U[:, :r]
+            top_r = float(torch.mean(torch.sum(proj**2, dim=1)).item())
+            fracs[r] = top_r / total if total > 0 else 0.0
+        drift_frac[ln] = fracs
+
+    r2_per_r = []
+    var_explained_per_r = []
+
+    for r in r_values:
+        # Variance explained: average across layers
+        var_exp = float(np.mean([
+            pca_variances[ln].cpu().numpy()[:r].sum() / total_variance[ln] * 100.0
+            for ln in layer_names
+        ]))
+        var_explained_per_r.append(var_exp)
+
+        # Approximate top-r drift per record by scaling stored total drift
+        drift_at_r = []
+        for rec in records:
+            layer_drifts = []
+            for ln in layer_names:
+                total_ln = rec.get(f"drift_total_{ln}", 0.0)
+                layer_drifts.append(total_ln * drift_frac[ln][r])
+            drift_at_r.append(float(np.mean(layer_drifts)))
+        drift_at_r = np.array(drift_at_r)
+
+        r2_per_r.append(ols_r2(drift_at_r, forgetting))
+
+    # Print results
+    print("\n" + "=" * 60)
+    print("  R-SWEEP DIAGNOSTIC")
+    print("=" * 60)
+    print(f"  {'r':>5s}  {'Var Explained (%)':>18s}  {'Forgetting R²':>14s}")
+    print("  " + "-" * 42)
+    for r, ve, r2 in zip(r_values, var_explained_per_r, r2_per_r):
+        print(f"  {r:5d}  {ve:18.1f}  {r2:14.4f}")
+    print("=" * 60)
+
+    # Interpretation
+    mid_idx = len(r_values) // 2
+    mid_var = var_explained_per_r[mid_idx]
+    mid_r2 = r2_per_r[mid_idx]
+    if mid_var > 80 and mid_r2 < 0.3:
+        print("  → Variance is high but R² is low: PCA may be the wrong basis.")
+        print("    High-variance directions ≠ forgetting-relevant directions.")
+    elif mid_r2 > 0.5 and mid_var > 50:
+        print("  → Both track together: forgetting IS in high-variance directions.")
+        print("    Increasing r should improve prediction.")
+    else:
+        print("  → Mixed signal: check the plot for detailed structure.")
+    print()
+
+    # Dual-axis plot
+    fig, ax1 = plt.subplots(figsize=(6, 4))
+
+    color_var = "#2196F3"
+    color_r2 = "#FF5722"
+
+    ax1.set_xlabel("r (number of PCA components)")
+    ax1.set_ylabel("Variance Explained (%)", color=color_var)
+    ax1.plot(r_values, var_explained_per_r, "o-", color=color_var, label="Var. Explained (%)")
+    ax1.tick_params(axis="y", labelcolor=color_var)
+    ax1.set_ylim(0, 105)
+
+    ax2 = ax1.twinx()
+    ax2.set_ylabel("Forgetting R²", color=color_r2)
+    ax2.plot(r_values, r2_per_r, "s-", color=color_r2, label="Forgetting R²")
+    ax2.tick_params(axis="y", labelcolor=color_r2)
+    ax2.set_ylim(-0.05, 1.05)
+
+    ax1.set_xscale("log", base=2)
+    ax1.set_xticks(r_values)
+    ax1.set_xticklabels([str(r) for r in r_values])
+
+    fig.suptitle("R-Sweep: Variance Explained vs Forgetting R²", y=1.02)
+    lines1, labels1 = ax1.get_legend_handles_labels()
+    lines2, labels2 = ax2.get_legend_handles_labels()
+    ax1.legend(lines1 + lines2, labels1 + labels2, loc="lower right", fontsize=8)
+
+    fig.tight_layout()
+    fig.savefig(os.path.join(out_dir, "fig_r_sweep.pdf"), bbox_inches="tight")
+    fig.savefig(os.path.join(out_dir, "fig_r_sweep.png"), bbox_inches="tight", dpi=150)
+    plt.close(fig)
+    print(f"  R-sweep plot saved to {out_dir}/fig_r_sweep.{{pdf,png}}")
+
+
+# ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 
@@ -291,6 +436,7 @@ def main():
     parser.add_argument("--old_task", default="math", help="Task to measure forgetting on")
     parser.add_argument("--new_task", default="code", help="Task to train on")
     parser.add_argument("--device", default="auto")
+    parser.add_argument("--sweep_r", action="store_true", help="Run r-sweep diagnostic after training")
     args = parser.parse_args()
 
     os.makedirs(args.out_dir, exist_ok=True)
@@ -342,11 +488,13 @@ def main():
 
     # Build PCA basis from anchor activations
     pca_bases = {}
+    pca_variances = {}
     random_bases = {}
     for layer_name in layer_names:
         a = anchor_acts[layer_name].float()
         u, variance = build_pca_basis(a, k=args.pca_k)
         pca_bases[layer_name] = u  # [hidden, k]
+        pca_variances[layer_name] = variance  # [k]
         random_bases[layer_name] = make_random_basis(a.shape[1], args.pca_k)
 
     # Load new-task training data
@@ -471,6 +619,7 @@ def main():
                 flush=True,
             )
 
+            final_acts = current_acts
             model.train()
 
     # Save raw data
@@ -494,6 +643,14 @@ def main():
         plot_h1_results(records, args.out_dir)
     else:
         print("Too few data points for regression (need ≥ 3)")
+
+    # R-sweep diagnostic
+    if args.sweep_r and len(records) >= 3:
+        sweep_r_diagnostic(
+            records, anchor_acts, final_acts,
+            pca_bases, pca_variances, layer_names,
+            args.out_dir, args.pca_k,
+        )
 
     print(f"\nTotal time: {time.time() - t0:.0f}s")
 

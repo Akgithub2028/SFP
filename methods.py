@@ -282,6 +282,24 @@ def sfp_loss(
 sfp_loss.SETUP = "sfp"
 
 
+def sfp_grad_loss(
+    model,
+    batch: dict,
+    memory_batch: dict | None = None,
+    basis: dict | None = None,
+    anchor_acts: dict | None = None,
+    lam: float = 0.1,
+    **kw,
+) -> Tensor:
+    """SFP with gradient-informed basis instead of PCA.
+
+    Uses top SVD directions of ∂L_old/∂a to define the preserved subspace.
+    """
+    return _sfp_loss_impl(model, batch, memory_batch, basis, anchor_acts, lam, **kw)
+
+sfp_grad_loss.SETUP = "sfp_grad"
+
+
 def sfp_random_basis_loss(
     model,
     batch: dict,
@@ -357,6 +375,9 @@ def method_setup(
     if setup_key == "sfp":
         return sfp_setup(model, tokenizer, memory_buffers, **kw)
 
+    if setup_key == "sfp_grad":
+        return sfp_grad_setup(model, tokenizer, memory_buffers, **kw)
+
     return {}
 
 
@@ -405,6 +426,56 @@ def sfp_setup(
     return {"basis": basis, "anchor_acts": anchor_acts}
 
 
+def sfp_grad_setup(
+    model,
+    tokenizer,
+    memory_buffers: dict,
+    layers: list[str] | None = None,
+    k: int = 128,
+    r: int = 32,
+    **kw,
+) -> dict:
+    """Build gradient-informed basis, cache anchor activations.
+
+    Returns: {"basis": {...}, "anchor_acts": {...}}
+    """
+    from features import (
+        build_gradient_basis,
+        collect_activations,
+        get_layer_names,
+    )
+
+    if layers is None:
+        layers = get_layer_names(model)
+
+    # Flatten memory buffers into a list of samples
+    mem_samples: list[dict] = []
+    for samples in memory_buffers.values():
+        if isinstance(samples, list):
+            mem_samples.extend(samples)
+
+    # Build gradient basis (already returns top-k directions per layer)
+    grad_basis = build_gradient_basis(
+        model, tokenizer, mem_samples, layers, k=k,
+    )
+
+    # Collect activations to compute anchor projections
+    acts = collect_activations(model, mem_samples, tokenizer, layers)
+
+    basis: dict[str, Tensor] = {}
+    anchor_acts: dict[str, Tensor] = {}
+
+    for layer_name in layers:
+        u = grad_basis[layer_name]  # [hidden, k]
+        # Select top-r (they're already ranked by singular value)
+        u_r = u[:, :min(r, u.shape[1])]  # [hidden, r]
+        basis[layer_name] = u_r
+        a = acts[layer_name].float()  # [n, hidden]
+        anchor_acts[layer_name] = (a @ u_r).detach()  # [n, r]
+
+    return {"basis": basis, "anchor_acts": anchor_acts}
+
+
 # ---------------------------------------------------------------------------
 # Method registry
 # ---------------------------------------------------------------------------
@@ -416,6 +487,7 @@ METHODS: dict[str, Callable] = {
     "hidden_distill": hidden_distill_loss,
     "orthogonal": orthogonal_loss,
     "sfp": sfp_loss,
+    "sfp_grad": sfp_grad_loss,
     "sfp_random_basis": sfp_random_basis_loss,
     "sfp_random_selection": sfp_random_selection_loss,
 }

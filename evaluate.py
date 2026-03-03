@@ -41,11 +41,23 @@ def evaluate_all(
     """Run all task evals.
 
     Returns: {task_name: {metric_name: value}}
+    CIs are added automatically for any metric that has a corresponding _scores key.
     """
     results = {}
     for name in task_names:
         mod = importlib.import_module(f"tasks.{name}")
-        results[name] = mod.evaluate(model, tokenizer, mode=mode)
+        task_results = mod.evaluate(model, tokenizer, mode=mode)
+
+        # Compute CIs from per-example _scores lists
+        scores_keys = [k for k in task_results if k.endswith("_scores") and isinstance(task_results[k], list)]
+        for sk in scores_keys:
+            metric = sk.removesuffix("_scores")
+            if metric in task_results:
+                _, lo, hi = compute_confidence_interval(task_results[sk])
+                task_results[f"{metric}_ci_low"] = lo
+                task_results[f"{metric}_ci_high"] = hi
+
+        results[name] = task_results
     return results
 
 
@@ -106,23 +118,20 @@ def compute_confidence_interval(
 
     Returns: (mean, ci_lower, ci_upper).
     """
-    import random as _rng
+    import numpy as np
 
     if not scores:
         return 0.0, 0.0, 0.0
 
-    rng = _rng.Random(seed)
-    n = len(scores)
-    means = []
-    for _ in range(n_bootstrap):
-        sample = [scores[rng.randint(0, n - 1)] for _ in range(n)]
-        means.append(sum(sample) / n)
+    arr = np.asarray(scores, dtype=np.float64)
+    rng = np.random.default_rng(seed)
+    n = len(arr)
+    boot_idx = rng.integers(0, n, size=(n_bootstrap, n))
+    boot_means = arr[boot_idx].mean(axis=1)
 
-    means.sort()
     alpha = (1 - ci) / 2
-    lo = means[int(alpha * n_bootstrap)]
-    hi = means[int((1 - alpha) * n_bootstrap)]
-    return sum(scores) / n, lo, hi
+    lo, hi = float(np.quantile(boot_means, alpha)), float(np.quantile(boot_means, 1 - alpha))
+    return float(arr.mean()), lo, hi
 
 
 def compute_forward_transfer(results_history: list[dict], task_names: list[str]) -> float:
@@ -184,15 +193,25 @@ def leaderboard_score(retention: float, plasticity: float) -> float:
 
 def print_results_table(results: dict, forgetting: dict | None = None) -> None:
     """Pretty-print results as ASCII table."""
-    # Collect all (task, metric, value) rows
+    # Collect all (task, metric, value) rows, skipping internal _scores/_ci keys
     rows: list[tuple[str, str, float]] = []
     for task in sorted(results):
         for metric, val in sorted(results[task].items()):
+            if metric.endswith("_scores") or metric.endswith("_ci_low") or metric.endswith("_ci_high"):
+                continue
+            if not isinstance(val, (int, float)):
+                continue
             rows.append((task, metric, val))
 
     if not rows:
         print("(no results)")
         return
+
+    # Check if any CIs are present
+    has_ci = any(
+        f"{metric}_ci_low" in results.get(task, {})
+        for task, metric, _ in rows
+    )
 
     # Column widths
     tw = max(len(r[0]) for r in rows)
@@ -201,6 +220,8 @@ def print_results_table(results: dict, forgetting: dict | None = None) -> None:
     fw = 10 if header_forget else 0
 
     hdr = f"{'Task':<{tw}}  {'Metric':<{mw}}  {'Value':>8}"
+    if has_ci:
+        hdr += f"  {'95% CI':>17}"
     if header_forget:
         hdr += f"  {'Forget':>{fw}}"
     sep = "-" * len(hdr)
@@ -211,6 +232,13 @@ def print_results_table(results: dict, forgetting: dict | None = None) -> None:
 
     for task, metric, val in rows:
         line = f"{task:<{tw}}  {metric:<{mw}}  {val:>8.4f}"
+        if has_ci:
+            ci_lo = results[task].get(f"{metric}_ci_low")
+            ci_hi = results[task].get(f"{metric}_ci_high")
+            if ci_lo is not None and ci_hi is not None:
+                line += f"  [{ci_lo:.3f}, {ci_hi:.3f}]"
+            else:
+                line += f"  {'':>17}"
         if header_forget and task in (forgetting or {}):
             pm = PRIMARY_METRIC.get(task)
             if metric == pm:
