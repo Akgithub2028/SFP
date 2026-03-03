@@ -1,9 +1,11 @@
 PAPER_DIR := paper
-DOCKER_IMG := sfp-latex
+LATEX_IMG := sfp-latex
+LEAN_DIR := lean-sfp
+LEAN_IMG := sfp-lean
 
-.PHONY: paper clean-paper paper-docker paper-docker-build install lint test fmt all
+.PHONY: paper clean-paper paper-docker-build install lint test fmt all lean lean-build lean-sorry
 
-all: install lint test paper
+all: install lint test lean paper
 
 # --- Python ---
 install:
@@ -19,12 +21,23 @@ fmt:
 test:
 	uv run pytest
 
+# --- Lean (dockerized) ---
+lean-build:
+	docker build -t $(LEAN_IMG) $(LEAN_DIR)
+
+lean: lean-build
+	docker run --rm $(LEAN_IMG) build
+
+lean-sorry: lean-build
+	@echo "=== sorry count ==="
+	@docker run --rm $(LEAN_IMG) env grep -rn sorry SFP/ || echo "No sorry found!"
+
 # --- LaTeX (dockerized) ---
 paper-docker-build:
-	docker build -t $(DOCKER_IMG) $(PAPER_DIR)
+	docker build -t $(LATEX_IMG) $(PAPER_DIR)
 
 paper: paper-docker-build
-	docker run --rm -v $(CURDIR)/$(PAPER_DIR):/paper $(DOCKER_IMG)
+	docker run --rm -v $(CURDIR)/$(PAPER_DIR):/paper $(LATEX_IMG)
 	cp $(PAPER_DIR)/build/main.pdf sfp.pdf
 	@echo "\n→ sfp.pdf"
 
