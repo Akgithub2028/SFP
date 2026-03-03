@@ -288,6 +288,7 @@ export function drawScatter(
   ctx.restore();
 
   // Draw points
+  const labels: { x: number; y: number; method: string; color: string }[] = [];
   for (let i = 0; i < entries.length; i++) {
     const e = entries[i];
     const px =
@@ -301,10 +302,29 @@ export function drawScatter(
     ctx.arc(px, py, 5, 0, Math.PI * 2);
     ctx.fill();
 
-    ctx.fillStyle = color;
-    ctx.textAlign = "left";
-    ctx.textBaseline = "middle";
-    ctx.fillText(e.method, px + 8, py);
+    labels.push({ x: px, y: py, method: e.method, color });
+  }
+
+  // Draw labels with collision avoidance
+  labels.sort((a, b) => a.y - b.y);
+  const placedYs: number[] = [];
+  ctx.textBaseline = "middle";
+  for (const lbl of labels) {
+    let ly = lbl.y;
+    for (const py of placedYs) {
+      if (Math.abs(ly - py) < 12) {
+        ly = py + 12;
+      }
+    }
+    placedYs.push(ly);
+
+    const textWidth = ctx.measureText(lbl.method).width;
+    const rightEdge = pad.left + pw + pad.right;
+    const fitsRight = lbl.x + 8 + textWidth <= rightEdge;
+
+    ctx.fillStyle = lbl.color;
+    ctx.textAlign = fitsRight ? "left" : "right";
+    ctx.fillText(lbl.method, fitsRight ? lbl.x + 8 : lbl.x - 8, ly);
   }
 
   // Title
