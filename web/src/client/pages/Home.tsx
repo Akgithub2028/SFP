@@ -43,7 +43,7 @@ export default function Home() {
   }
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
+    <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
       <Nav />
 
       {/* ── Intro ── */}
@@ -59,7 +59,7 @@ export default function Home() {
       {/* ── Leaderboard + Scatter side by side ── */}
       <section className="mb-4 grid items-start gap-6 lg:grid-cols-2">
         <div>
-          <div className="mb-2 flex items-baseline justify-between">
+          <div className="mb-2">
             <h2 className="text-lg font-semibold">Leaderboard</h2>
             <span className="text-xs" style={{ color: "var(--text-dim)" }}>
               Score = 0.6 × retention + 0.4 × plasticity
@@ -68,9 +68,6 @@ export default function Home() {
           <LeaderboardTable entries={entries} />
         </div>
         <div>
-          <h3 className="mb-2 text-lg font-semibold" style={{ color: "var(--text-dim)" }}>
-            Retention vs Plasticity
-          </h3>
           <ScatterPlot entries={entries} />
         </div>
       </section>

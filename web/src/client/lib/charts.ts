@@ -226,7 +226,7 @@ export function drawScatter(
   const rect = canvas.getBoundingClientRect();
   const cw = rect.width;
   const ch = rect.height;
-  const pad = { top: 30, right: 80, bottom: 45, left: 55 };
+  const pad = { top: 20, right: 110, bottom: 45, left: 55 };
   const pw = cw - pad.left - pad.right;
   const ph = ch - pad.top - pad.bottom;
 
@@ -307,29 +307,32 @@ export function drawScatter(
 
   // Draw labels with collision avoidance
   labels.sort((a, b) => a.y - b.y);
-  const placedYs: number[] = [];
+  const placed: { x: number; y: number; w: number; align: "left" | "right" }[] = [];
   ctx.textBaseline = "middle";
+
   for (const lbl of labels) {
+    const textWidth = ctx.measureText(lbl.method).width;
+    const rightEdge = cw - 4;
+    const fitsRight = lbl.x + 10 + textWidth <= rightEdge;
+    const align = fitsRight ? "left" as const : "right" as const;
+    const lx = fitsRight ? lbl.x + 10 : lbl.x - 10;
+
+    // Find a y that doesn't collide with any placed label
     let ly = lbl.y;
-    for (const py of placedYs) {
-      if (Math.abs(ly - py) < 12) {
-        ly = py + 12;
+    let collides = true;
+    while (collides) {
+      collides = false;
+      for (const p of placed) {
+        if (Math.abs(ly - p.y) < 13) {
+          ly = p.y + 13;
+          collides = true;
+        }
       }
     }
-    placedYs.push(ly);
-
-    const textWidth = ctx.measureText(lbl.method).width;
-    const rightEdge = pad.left + pw + pad.right;
-    const fitsRight = lbl.x + 8 + textWidth <= rightEdge;
+    placed.push({ x: lx, y: ly, w: textWidth, align });
 
     ctx.fillStyle = lbl.color;
-    ctx.textAlign = fitsRight ? "left" : "right";
-    ctx.fillText(lbl.method, fitsRight ? lbl.x + 8 : lbl.x - 8, ly);
+    ctx.textAlign = align;
+    ctx.fillText(lbl.method, lx, ly);
   }
-
-  // Title
-  ctx.fillStyle = dimColor;
-  ctx.textAlign = "center";
-  ctx.textBaseline = "top";
-  ctx.fillText("Retention vs Plasticity", cw / 2, 8);
 }

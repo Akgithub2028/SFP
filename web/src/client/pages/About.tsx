@@ -27,7 +27,7 @@ function Ref({ id }: { id: string }) {
 
 export default function About() {
   return (
-    <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
+    <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
       <Nav />
 
       <h2 className="mb-2 text-2xl font-bold">About</h2>

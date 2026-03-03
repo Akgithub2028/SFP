@@ -25,5 +25,10 @@ export default function ScatterPlot({ entries }: { entries: Entry[] }) {
     );
   }
 
-  return <canvas ref={canvasRef} className="chart chart-tall" />;
+  return (
+    <div>
+      <h2 className="mb-2 text-lg font-semibold">Retention vs Plasticity</h2>
+      <canvas ref={canvasRef} className="chart chart-tall" />
+    </div>
+  );
 }
