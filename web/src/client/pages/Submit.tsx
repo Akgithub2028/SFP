@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import Nav from "@/components/Nav";
 import Footer from "@/components/Footer";
 import CodeBlock from "@/components/CodeBlock";
@@ -84,7 +85,7 @@ def my_replay_loss(
           <p>
             When the benchmark finishes, your score is computed and added to the leaderboard automatically.
             The CLI prints your final score. You can also check the{" "}
-            <a href="/" style={{ color: "var(--accent)" }}>leaderboard page</a> directly.
+            <Link to="/" style={{ color: "var(--accent)" }}>leaderboard page</Link> directly.
           </p>
         </section>
 

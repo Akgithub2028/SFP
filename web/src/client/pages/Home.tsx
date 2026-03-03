@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import type { Benchmark, Entry } from "@/lib/types";
 import { fetchLeaderboard } from "@/lib/api";
 import LeaderboardTable from "@/components/LeaderboardTable";
@@ -51,8 +52,8 @@ export default function Home() {
         <ul className="list-inside list-disc space-y-0.5">
           <li>Fine-tune an LLM on tasks A, B, C in sequence — <strong style={{ color: "var(--text)" }}>how much of A does it forget?</strong></li>
           <li>Every method below is a single loss function. Same model, same data, same compute.</li>
-          <li>The only variable is your training strategy. <a href="/about" style={{ color: "var(--accent)" }}>Read the research question →</a></li>
-          <li>Write a loss function and <a href="/submit" style={{ color: "var(--accent)" }}>submit it</a> — we run it on a cloud GPU and score it automatically.</li>
+          <li>The only variable is your training strategy. <Link to="/about" style={{ color: "var(--accent)" }}>Read the research question →</Link></li>
+          <li>Write a loss function and <Link to="/submit" style={{ color: "var(--accent)" }}>submit it</Link> — we run it on a cloud GPU and score it automatically.</li>
         </ul>
       </section>
 
@@ -106,13 +107,13 @@ export default function Home() {
               Write a loss function, submit it, get scored. No GPU needed.
             </div>
           </div>
-          <a
-            href="/submit"
+          <Link
+            to="/submit"
             className="rounded-md px-4 py-2 text-sm font-semibold"
             style={{ background: "var(--accent)", color: "#000" }}
           >
             Submit →
-          </a>
+          </Link>
         </div>
       </section>
 
