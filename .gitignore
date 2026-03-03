@@ -10,6 +10,8 @@ out/
 *.pt
 *.npy
 *.pdf
+!web/public/paper.pdf
+!sfp.pdf
 wandb/
 .DS_Store
 uv.lock
