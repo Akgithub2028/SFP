@@ -1,10 +1,5 @@
 import { useLocation, Link } from "react-router-dom";
 
-const LINKS = [
-  { href: "/submit", label: "Submit" },
-  { href: "/about", label: "About" },
-];
-
 export default function Nav() {
   const { pathname } = useLocation();
 
@@ -24,31 +19,25 @@ export default function Nav() {
             </h1>
           </Link>
           <nav className="flex gap-4">
-            {LINKS.map((link) => (
-              <Link
-                key={link.href}
-                to={link.href}
-                className="text-sm transition-colors"
-                style={{
-                  color:
-                    pathname === link.href
-                      ? "var(--text)"
-                      : "var(--text-dim)",
-                  fontWeight: pathname === link.href ? 600 : 400,
-                }}
-              >
-                {link.label}
-              </Link>
-            ))}
+            <Link
+              to="/about"
+              className="text-sm transition-colors"
+              style={{
+                color: pathname === "/about" ? "var(--text)" : "var(--text-dim)",
+                fontWeight: pathname === "/about" ? 600 : 400,
+              }}
+            >
+              Motivation
+            </Link>
+            <a
+              href="https://github.com/paradigmxyz/sfp"
+              className="text-sm"
+              style={{ color: "var(--text-dim)" }}
+            >
+              GitHub ↗
+            </a>
           </nav>
         </div>
-        <a
-          href="https://github.com/paradigmxyz/sfp"
-          className="text-xs"
-          style={{ color: "var(--text-dim)" }}
-        >
-          GitHub ↗
-        </a>
       </div>
       <p className="mt-1 text-xs" style={{ color: "var(--text-dim)" }}>
         An open benchmark for catastrophic forgetting in LLMs
