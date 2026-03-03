@@ -121,14 +121,17 @@ def load_task(
     """
     from datasets import load_dataset
 
+    # Pin dataset revisions for reproducibility — prevents silent data drift.
     if task_name == "math":
-        ds = load_dataset("openai/gsm8k", "main", split=split)
+        ds = load_dataset("openai/gsm8k", "main", split=split, revision="e53f048")
         examples = [
             {"input": row["question"], "output": row["answer"], "task_id": "math"}
             for row in ds
         ]
     elif task_name == "code":
-        ds = load_dataset("google-research-datasets/mbpp", "sanitized", split=split)
+        ds = load_dataset(
+            "google-research-datasets/mbpp", "sanitized", split=split, revision="12e9221"
+        )
         examples = [
             {"input": row["prompt"], "output": row["code"], "task_id": "code"}
             for row in ds

@@ -4,8 +4,8 @@ scripts/modal_bench.py — Run the leaderboard benchmark on Modal (GPU).
 Presets (pick one):
     modal run scripts/modal_bench.py --preset smoke     # ~$0.50, 2 min  — sanity check
     modal run scripts/modal_bench.py --preset quick      # ~$2,   10 min — iterate fast
-    modal run scripts/modal_bench.py --preset standard   # ~$8,   45 min — official benchmark
-    modal run scripts/modal_bench.py --preset full        # ~$15,  90 min — publication-grade
+    modal run scripts/modal_bench.py --preset standard   # ~$25,  2h     — official benchmark
+    modal run scripts/modal_bench.py --preset full        # ~$75,  6h     — publication-grade
 
 Custom:
     modal run scripts/modal_bench.py --method sfp --memory 128 --preset quick
@@ -72,22 +72,22 @@ PRESETS = {
     "standard": {
         "gpu": "A10G",
         "seeds": [42, 43, 44],
-        "steps_per_task": 1000,
+        "steps_per_task": 2000,
         "model": "Qwen/Qwen2.5-1.5B-Instruct",
-        "tasks": "math,code,ifeval",
-        "est_cost": "$8",
-        "est_time": "~45 min",
-        "desc": "Official leaderboard benchmark. 3 seeds, 1000 steps. Used for PR scoring.",
+        "tasks": "math,code,ifeval,safety,domain",
+        "est_cost": "$25",
+        "est_time": "~2h",
+        "desc": "Official leaderboard benchmark. 3 seeds, 2000 steps, 5 tasks. Used for PR scoring.",
     },
     "full": {
         "gpu": "A10G",
         "seeds": [42, 43, 44],
         "steps_per_task": 2000,
         "model": "Qwen/Qwen2.5-1.5B-Instruct",
-        "tasks": "math,code,ifeval,safety",
-        "est_cost": "$15",
-        "est_time": "~90 min",
-        "desc": "Extended benchmark. 4 tasks, 2000 steps. For paper-grade results.",
+        "tasks": "math,code,ifeval,safety,domain",
+        "est_cost": "$75",
+        "est_time": "~6h",
+        "desc": "Publication-grade benchmark. 3 seeds, 3 orderings, 2000 steps, 5 tasks.",
     },
 }
 

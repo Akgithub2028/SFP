@@ -49,7 +49,10 @@ def evaluate_all(
         task_results = mod.evaluate(model, tokenizer, mode=mode)
 
         # Compute CIs from per-example _scores lists
-        scores_keys = [k for k in task_results if k.endswith("_scores") and isinstance(task_results[k], list)]
+        scores_keys = [
+            k for k in task_results
+            if k.endswith("_scores") and isinstance(task_results[k], list)
+        ]
         for sk in scores_keys:
             metric = sk.removesuffix("_scores")
             if metric in task_results:
@@ -135,7 +138,10 @@ def compute_confidence_interval(
 
 
 def compute_forward_transfer(results_history: list[dict], task_names: list[str]) -> float:
-    """Forward Transfer (FWT): average first-seen accuracy (proxy — actual FWT needs zero-shot baselines)."""
+    """Forward Transfer (FWT): average first-seen accuracy.
+
+    Proxy — actual FWT needs zero-shot baselines.
+    """
     if len(results_history) < 2 or len(task_names) < 2:
         return 0.0
     scores = []
@@ -248,7 +254,7 @@ def print_results_table(results: dict, forgetting: dict | None = None) -> None:
     rows: list[tuple[str, str, float]] = []
     for task in sorted(results):
         for metric, val in sorted(results[task].items()):
-            if metric.endswith("_scores") or metric.endswith("_ci_low") or metric.endswith("_ci_high"):
+            if metric.endswith(("_scores", "_ci_low", "_ci_high")):
                 continue
             if not isinstance(val, (int, float)):
                 continue
@@ -387,11 +393,19 @@ def main() -> None:
             entries = [(name, ret, plas) for name, ret, plas, _ in rows]
             pareto = compute_pareto_dominance(entries)
 
-            print(f"| {'Run':<20} | {'Ret':>7} | {'Plas':>7} | {'AA':>7} | {'Score':>7} | {'Pareto':>6} |")
+            hdr = (
+                f"| {'Run':<20} | {'Ret':>7} | {'Plas':>7} "
+                f"| {'AA':>7} | {'Score':>7} | {'Pareto':>6} |"
+            )
+            print(hdr)
             print(f"|{'-'*22}|{'-'*9}|{'-'*9}|{'-'*9}|{'-'*9}|{'-'*8}|")
-            for (name, ret, plas, aa), is_pareto in zip(rows, pareto):
+            for (name, ret, plas, aa), is_pareto in zip(rows, pareto, strict=True):
                 score = leaderboard_score(ret, plas)
-                print(f"| {name:<20} | {ret:.4f} | {plas:.4f} | {aa:.4f} | {score:.4f} | {'✓' if is_pareto else ' ':>6} |")
+                pareto_mark = '✓' if is_pareto else ' '
+                print(
+                    f"| {name:<20} | {ret:.4f} | {plas:.4f} "
+                    f"| {aa:.4f} | {score:.4f} | {pareto_mark:>6} |"
+                )
 
     else:
         parser.print_help()

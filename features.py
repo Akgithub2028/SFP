@@ -35,16 +35,22 @@ def get_layer_names(
     for name in all_names:
         if name.endswith(".layers.0"):
             prefix = name.rsplit(".0", 1)[0]
-            n_layers = sum(1 for n in all_names if n.startswith(prefix + ".") and n[len(prefix)+1:].isdigit())
+            n_layers = sum(
+                1 for n in all_names
+                if n.startswith(prefix + ".") and n[len(prefix)+1:].isdigit()
+            )
             break
         if name.endswith(".h.0"):
             prefix = name.rsplit(".0", 1)[0]
-            n_layers = sum(1 for n in all_names if n.startswith(prefix + ".") and n[len(prefix)+1:].isdigit())
+            n_layers = sum(
+                1 for n in all_names
+                if n.startswith(prefix + ".") and n[len(prefix)+1:].isdigit()
+            )
             break
 
     if prefix is None or n_layers == 0:
         raise ValueError(
-            f"Cannot detect transformer layers in model modules."
+            "Cannot detect transformer layers in model modules."
         )
 
     indices = [int(p * n_layers) for p in positions]

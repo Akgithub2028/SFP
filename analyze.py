@@ -435,39 +435,39 @@ def _run_order_sensitivity(run_dirs: list[str]) -> None:
     for method, runs in sorted(methods.items()):
         retentions = [r.get("retention", 0.0) for r in runs]
         plasticities = [r.get("plasticity", 0.0) for r in runs]
-        leaderboards = [r.get("leaderboard", 0.0) for r in runs]
+        scores = [r.get("score", 0.0) for r in runs]
 
         ret_mean, ret_std = float(np.mean(retentions)), float(np.std(retentions))
         pla_mean, pla_std = float(np.mean(plasticities)), float(np.std(plasticities))
-        lb_mean, lb_std = float(np.mean(leaderboards)), float(np.std(leaderboards))
+        lb_mean, lb_std = float(np.mean(scores)), float(np.std(scores))
 
         method_scores[method] = {
             "retention": (ret_mean, ret_std),
             "plasticity": (pla_mean, pla_std),
-            "leaderboard": (lb_mean, lb_std),
+            "score": (lb_mean, lb_std),
         }
 
         print(f"\n{method} ({len(runs)} orderings):")
         print(f"  retention   : {ret_mean:.4f} ± {ret_std:.4f}")
         print(f"  plasticity  : {pla_mean:.4f} ± {pla_std:.4f}")
-        print(f"  leaderboard : {lb_mean:.4f} ± {lb_std:.4f}")
+        print(f"  score       : {lb_mean:.4f} ± {lb_std:.4f}")
 
-    # Check ranking stability across leaderboard score
+    # Check ranking stability across score
     if len(method_scores) >= 2:
         print("\n" + "-" * 60)
-        ranked = sorted(method_scores.items(), key=lambda x: x[1]["leaderboard"][0], reverse=True)
-        print("Ranking by leaderboard (mean):")
+        ranked = sorted(method_scores.items(), key=lambda x: x[1]["score"][0], reverse=True)
+        print("Ranking by score (mean):")
         for i, (m, scores) in enumerate(ranked, 1):
-            mean, std = scores["leaderboard"]
+            mean, std = scores["score"]
             print(f"  {i}. {m}: {mean:.4f} ± {std:.4f}")
 
         # Check if top method's mean - std > second's mean + std (non-overlapping)
-        top_m, top_s = ranked[0][1]["leaderboard"]
-        sec_m, sec_s = ranked[1][1]["leaderboard"]
+        top_m, top_s = ranked[0][1]["score"]
+        sec_m, sec_s = ranked[1][1]["score"]
         if top_m - top_s > sec_m + sec_s:
-            print(f"\nRanking is STABLE: {ranked[0][0]} > {ranked[1][0]} (non-overlapping ±1σ)")
+            print(f"\nRanking is STABLE: {ranked[0][0]} > {ranked[1][0]} (non-overlapping ±1σ)")  # noqa: RUF001
         else:
-            print(f"\nRanking is UNSTABLE: {ranked[0][0]} vs {ranked[1][0]} have overlapping ±1σ")
+            print(f"\nRanking is UNSTABLE: {ranked[0][0]} vs {ranked[1][0]} have overlapping ±1σ")  # noqa: RUF001
 
 
 if __name__ == "__main__":

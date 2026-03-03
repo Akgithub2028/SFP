@@ -249,7 +249,7 @@ def submit(sub: Submission):
 
     return SubmissionResponse(
         id=sub_id, status="queued",
-        message=f"Queued. Poll GET /status/{sub_id} for results (~45 min).",
+        message=f"Queued. Poll GET /status/{sub_id} for results (~6h).",
     )
 
 
@@ -277,11 +277,12 @@ def results(sub_id: str):
 
 BENCHMARK = {
     "model": "Qwen/Qwen2.5-1.5B-Instruct",
-    "tasks": ["math", "code", "ifeval"],
-    "steps_per_task": 1000,
+    "tasks": ["math", "code", "ifeval", "safety", "domain"],
+    "steps_per_task": 2000,
     "lora_rank": 64,
     "seeds": [42, 43, 44],
     "memory": 128,
+    "orderings": 3,
 }
 
 

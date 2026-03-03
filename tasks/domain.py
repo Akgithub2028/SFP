@@ -78,9 +78,9 @@ _FALLBACK_TEXTS = [
     " a critical temperature. In this state, electric current flows without energy dissipation and"
     " magnetic flux is expelled from the material via the Meissner effect.",
     # Chemistry
-    "Catalysts accelerate chemical reactions by lowering the activation energy without being consumed"
-    " in the process. Enzymes are biological catalysts that exhibit remarkable specificity, often"
-    " catalyzing a single reaction type.",
+    "Catalysts accelerate chemical reactions by lowering the activation energy without being"
+    " consumed in the process. Enzymes are biological catalysts that exhibit remarkable"
+    " specificity, often catalyzing a single reaction type.",
     "Electronegativity is the tendency of an atom to attract shared electrons toward itself in a"
     " chemical bond. Fluorine has the highest electronegativity of all elements, which explains"
     " its strong oxidizing behavior.",
@@ -88,14 +88,16 @@ _FALLBACK_TEXTS = [
     " pressure and temperature using an iron catalyst. This industrial process is responsible for"
     " producing the majority of the world's fertilizer.",
     # Medicine
-    "The blood-brain barrier is a highly selective semipermeable membrane that separates circulating"
-    " blood from the brain extracellular fluid. Tight junctions between endothelial cells restrict"
+    "The blood-brain barrier is a highly selective semipermeable membrane that separates"
+    " circulating blood from the brain extracellular fluid. Tight junctions between endothelial"
+    " cells restrict"
     " the passive diffusion of most molecules into the central nervous system.",
     "Messenger RNA vaccines work by delivering synthetic mRNA encoding a viral antigen into host"
     " cells. The ribosomes translate the mRNA into protein, which triggers an adaptive immune"
     " response without using live virus.",
-    "Antibiotic resistance arises when bacteria evolve mechanisms to survive exposure to antimicrobial"
-    " drugs. Horizontal gene transfer through plasmids allows resistance genes to spread rapidly"
+    "Antibiotic resistance arises when bacteria evolve mechanisms to survive exposure to"
+    " antimicrobial drugs. Horizontal gene transfer through plasmids allows resistance genes to"
+    " spread rapidly"
     " across bacterial populations.",
     # Computer science
     "Gradient descent is an iterative optimization algorithm used to minimize a differentiable"
@@ -109,14 +111,15 @@ _FALLBACK_TEXTS = [
     " determine performance under high load factors.",
     # Earth science
     "Plate tectonics describes the movement of lithospheric plates on the asthenosphere driven by"
-    " mantle convection. Divergent boundaries create new crust at mid-ocean ridges, while convergent"
-    " boundaries produce subduction zones and mountain ranges.",
+    " mantle convection. Divergent boundaries create new crust at mid-ocean ridges, while"
+    " convergent boundaries produce subduction zones and mountain ranges.",
     "The carbon cycle describes the movement of carbon between the atmosphere, oceans, biosphere,"
-    " and lithosphere. Anthropogenic emissions from fossil fuel combustion have increased atmospheric"
-    " CO2 concentrations well above pre-industrial levels.",
+    " and lithosphere. Anthropogenic emissions from fossil fuel combustion have increased"
+    " atmospheric CO2 concentrations well above pre-industrial levels.",
     # Astronomy
-    "Neutron stars are the collapsed cores of massive stars that have undergone supernova explosions."
-    " With masses up to twice that of the Sun compressed into a sphere roughly 10 kilometers across,"
+    "Neutron stars are the collapsed cores of massive stars that have undergone supernova"
+    " explosions. With masses up to twice that of the Sun compressed into a sphere roughly"
+    " 10 kilometers across,"
     " they exhibit extreme gravitational and magnetic fields.",
     "The cosmic microwave background radiation is the thermal remnant of the early universe,"
     " emitted roughly 380,000 years after the Big Bang when protons and electrons first combined"

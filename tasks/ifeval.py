@@ -107,8 +107,8 @@ def _check_constraint(instruction_id: str, kwargs: dict, response: str) -> bool:
     if instruction_id == "detectable_format:number_bullet_lists":
         num_bullets = kwargs.get("num_bullets", 1)
         bullet_lines = [
-            l for l in response.split("\n")
-            if re.match(r"\s*[-*•]\s+", l) or re.match(r"\s*\d+[.)]\s+", l)
+            line for line in response.split("\n")
+            if re.match(r"\s*[-*•]\s+", line) or re.match(r"\s*\d+[.)]\s+", line)
         ]
         return len(bullet_lines) >= num_bullets
 
@@ -166,11 +166,8 @@ def _check_constraint(instruction_id: str, kwargs: dict, response: str) -> bool:
     if instruction_id == "punctuation:no_comma":
         return "," not in response
 
-    if instruction_id == "language:response_language":
-        return True  # skip — needs classifier
-
-    # Unrecognized constraint: strict — do not count as satisfied
-    return False
+    # Unrecognized constraint (or language check — needs classifier): strict
+    return instruction_id == "language:response_language"
 
 
 @torch.no_grad()
@@ -207,7 +204,7 @@ def evaluate(model, tokenizer, mode: str = "fast") -> dict[str, float]:
         # Check all constraints for this example
         all_ok = all(
             _check_constraint(inst_id, kw, response)
-            for inst_id, kw in zip(instructions, kwargs_list)
+            for inst_id, kw in zip(instructions, kwargs_list, strict=True)
         )
         per_example.append(1.0 if all_ok else 0.0)
 

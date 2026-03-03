@@ -118,7 +118,11 @@ def load_method_file(path: str, method_name: str) -> None:
         loss_fn.SETUP = setup_key
 
     METHODS[method_name] = loss_fn
-    print(f"Loaded method '{method_name}' from {path} (fn={loss_fn.__name__}, SETUP={getattr(loss_fn, 'SETUP', 'none')})")
+    setup = getattr(loss_fn, 'SETUP', 'none')
+    print(
+        f"Loaded method '{method_name}' from {path} "
+        f"(fn={loss_fn.__name__}, SETUP={setup})"
+    )
 
 
 def print_banner(cfg: dict) -> None:
@@ -206,7 +210,10 @@ if __name__ == "__main__":
     optimizer = torch.optim.AdamW(trainable_params, lr=cfg["lr"])
 
     # Parse tasks
-    tasks = [t.strip() for t in cfg["tasks"].split(",")]
+    if isinstance(cfg["tasks"], list):
+        tasks = cfg["tasks"]
+    else:
+        tasks = [t.strip() for t in cfg["tasks"].split(",")]
     print(f"\nTask sequence: {tasks}\n")
 
     # Metrics (Prometheus pushgateway, optional)

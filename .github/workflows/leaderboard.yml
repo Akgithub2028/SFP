@@ -62,7 +62,7 @@ jobs:
                 `| Retention | ${results.retention_mean.toFixed(4)} | ±${results.retention_std.toFixed(4)} |`,
                 `| Plasticity | ${results.plasticity_mean.toFixed(4)} | ±${results.plasticity_std.toFixed(4)} |`,
                 '',
-                `Seeds: 42, 43, 44 | Model: Qwen2.5-1.5B-Instruct | Tasks: math→code→ifeval | Steps: 1000/task`,
+                `Seeds: 42, 43, 44 | Model: Qwen2.5-1.5B-Instruct | Tasks: math,code,ifeval,safety,domain | Steps: 2000/task | 3 orderings`,
                 '',
                 '<details><summary>Raw results</summary>\n',
                 '```json',
