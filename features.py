@@ -1,7 +1,7 @@
 """
-features.py — Activation hooks, PCA subspace construction, importance ranking.
+features.py — Activation hooks, PCA/gradient subspace construction, importance ranking.
 
-~150 lines. Uses torch + numpy. No imports from other project files.
+~250 lines. Uses torch + numpy. No imports from other project files.
 """
 
 from __future__ import annotations
@@ -78,8 +78,14 @@ def collect_activations(
 
     def _make_hook(name: str):
         def hook_fn(_module, _input, output):
-            # output can be a tuple (hidden_states, ...) or a plain tensor
-            h = output[0] if isinstance(output, tuple) else output
+            if isinstance(output, Tensor):
+                h = output
+            elif isinstance(output, tuple):
+                h = output[0]
+            elif hasattr(output, "last_hidden_state"):
+                h = output.last_hidden_state
+            else:
+                h = output[0]
             if pool == "last":
                 buffers[name].append(h[:, -1, :].detach().cpu())
             else:
@@ -136,6 +142,86 @@ def build_pca_basis(activations: Tensor, k: int = 128) -> tuple[Tensor, Tensor]:
     return U, explained_variance
 
 
+def build_gradient_basis(
+    model,
+    tokenizer,
+    memory_set: list[dict],
+    layer_names: list[str],
+    k: int = 128,
+    batch_size: int = 4,
+    device: str = "auto",
+) -> dict[str, Tensor]:
+    """Compute gradient-informed basis via SVD of activation gradients.
+
+    For each layer, collects ∂L_old/∂a over the memory set, then takes the
+    top-k SVD directions of the gradient matrix. These are the directions
+    along which old-task loss is most sensitive to activation changes.
+
+    Args:
+        memory_set: List of {"input": str, "output": str, ...} examples.
+        layer_names: Which layers to probe.
+        k: Number of top gradient directions to keep.
+        batch_size: Process this many examples at a time.
+
+    Returns:
+        {layer_name: U_grad tensor [hidden_dim, k]}
+    """
+    from data import get_batch
+
+    if device == "auto":
+        device = str(next(model.parameters()).device)
+
+    if tokenizer.pad_token is None:
+        tokenizer.pad_token = tokenizer.eos_token
+
+    grad_buffers: dict[str, list[Tensor]] = {name: [] for name in layer_names}
+    hooks = []
+    hidden_states: dict[str, Tensor] = {}
+
+    def _make_hook(name: str):
+        def hook_fn(_module, _input, output):
+            h = output[0] if isinstance(output, tuple) else output
+            h.retain_grad()
+            hidden_states[name] = h
+        return hook_fn
+
+    modules = dict(model.named_modules())
+    for name in layer_names:
+        hooks.append(modules[name].register_forward_hook(_make_hook(name)))
+
+    try:
+        model.eval()
+        for i in range(0, len(memory_set), batch_size):
+            chunk = memory_set[i : i + batch_size]
+            batch = get_batch(
+                chunk, batch_size=len(chunk), tokenizer=tokenizer, device=device,
+            )
+            hidden_states.clear()
+            out = model(
+                input_ids=batch["input_ids"],
+                attention_mask=batch["attention_mask"],
+                labels=batch["labels"],
+            )
+            out.loss.backward()
+            for name in layer_names:
+                # ∂L/∂h has shape [batch, seq, hidden]; mean-pool over seq
+                g = hidden_states[name].grad.float().mean(dim=1)  # [batch, hidden]
+                grad_buffers[name].append(g.detach().cpu())
+            model.zero_grad()
+    finally:
+        for h in hooks:
+            h.remove()
+
+    result: dict[str, Tensor] = {}
+    for name in layer_names:
+        G = torch.cat(grad_buffers[name], dim=0).float()  # [n, hidden]
+        _U_full, _S, Vh = torch.linalg.svd(G, full_matrices=False)
+        k_actual = min(k, Vh.shape[0])
+        result[name] = Vh[:k_actual].T  # [hidden, k]
+
+    return result
+
+
 def rank_importance(
     model,
     tokenizer,
@@ -166,14 +252,29 @@ def rank_importance(
 
             def hook_fn(_module, _input, output):
                 nonlocal col_dev
-                h = output[0] if isinstance(output, tuple) else output
+                is_tensor = isinstance(output, Tensor)
+                is_tuple = isinstance(output, tuple)
+                if is_tensor:
+                    h = output
+                elif is_tuple:
+                    h = output[0]
+                elif hasattr(output, "last_hidden_state"):
+                    h = output.last_hidden_state
+                else:
+                    return output
+                orig_dtype = h.dtype
                 if col_dev is None:
                     col_dev = col.to(h.device).float()
-                proj = torch.einsum("bsh,h->bs", h.float(), col_dev)
-                h = h - torch.einsum("bs,h->bsh", proj, col_dev)
-                if isinstance(output, tuple):
-                    return (h, *output[1:])
-                return h
+                # h may be [batch, seq, hidden] or [seq, hidden]
+                h_flat = h.float().reshape(-1, h.shape[-1])
+                proj = h_flat @ col_dev.unsqueeze(-1)  # [..., 1]
+                h_new = (h.float() - (proj.reshape(*h.shape[:-1], 1) * col_dev)).to(orig_dtype)
+                if is_tensor:
+                    return h_new
+                if is_tuple:
+                    return (h_new, *output[1:])
+                output.last_hidden_state = h_new
+                return output
 
             return hook_fn
 

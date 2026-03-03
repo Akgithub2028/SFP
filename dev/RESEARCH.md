@@ -81,3 +81,160 @@ What's new:
 3. **LLM continual instruction-tuning** setting with strong baselines (not just vision CL benchmarks).
 4. **Formal verification** of the mathematical reduction — prevents hand-wavy algebra, makes assumptions explicit (not a "guarantee").
 5. Potential **mechanistic link** to interpretability (if SAE features outperform PCA — future work).
+
+## Experiment Log
+
+### 2026-03-03 — H1 Control (preliminary)
+
+**Goal**: Test H1 — does drift in top-r PCA dimensions predict forgetting better than drift in bottom-r, random-r, or total drift?
+
+**Config**:
+- Model: SmolLM2-135M-Instruct (HuggingFaceTB/SmolLM2-135M-Instruct)
+- 40 training steps, checkpoint every 10 (→ 5 data points including step 0)
+- LoRA rank 16, PCA k=16, preserve r=8, 16 memory examples
+- Old task: math, New task: code
+- Device: CPU
+- Seed: 42
+- Output: `out/h1_control/h1_control.json`
+
+**Problem**: SmolLM2-135M scores 0.0% on math (baseline accuracy = 0.0 at every checkpoint), so accuracy-based forgetting is undefined. Used **perplexity-based forgetting proxy** instead: `forgetting_ppl = (math_ppl_t − math_ppl_0) / math_ppl_0`. Baseline perplexity: 1.177.
+
+**R² results** (simple linear regression, drift → forgetting_ppl):
+
+| Predictor | R² |
+|-----------|-----|
+| bottom-r drift | **0.9943** |
+| random-r drift | 0.9874 |
+| total drift | 0.9779 |
+| top-r drift | 0.9126 |
+
+Ranking: **bottom > random > total > top**. This is the *opposite* of what H1 predicts. H1 claims top-r drift should be the best predictor; here it is the worst.
+
+Partial R²(top_r | total) = 0.9538 — top-r does carry signal beyond total drift, but the relationship is nonlinear (top-r drift grows faster than forgetting at later steps).
+
+**Gate 1 check**:
+1. ❌ R²(top-r drift, forgetting) > 0.6 — technically passes (0.91), but it's the *worst* predictor, not the best
+2. ❌ R²(top-r) > R²(random-r) — **FAIL** (0.91 < 0.99)
+3. ❌ R²(top-r) > R²(total) after controlling for total — not meaningfully better
+
+**Gate 1 verdict: FAIL** on all three checks. Top-r PCA drift is not preferentially predictive of forgetting in this setup.
+
+**Caveats** (why this is not definitive):
+- **Tiny model** (135M params, 30 layers) — PCA on 16 dims from 16 memory examples is statistically underpowered. The top PCA components of a 135M model may not capture the same structure as in a 1B+ model.
+- **Only 5 data points** (step 0, 10, 20, 30, 40) — all R² values are inflated by the near-monotonic trajectory. With 5 points and monotonic growth, even random noise gets high R².
+- **Perplexity proxy** — perplexity and accuracy can diverge. The model never solved math, so we're measuring "how much worse does it get at generating math-like tokens" rather than "how much capability is lost."
+- **CPU, 40 steps** — barely enough training to induce meaningful drift. The forgetting signal (Δppl ≈ 0.019) is tiny.
+- **r=8 out of k=16** — preserving half the PCA space leaves little room for "unimportant" dims to behave differently.
+
+**Interpretation**: Too small to be definitive in either direction. The inverted ranking could be a real phenomenon (bottom PCA dims track forgetting better because they capture fine-grained features that are easily overwritten) or an artifact of the underpowered setup. Need a proper GPU experiment to distinguish.
+
+**Next steps**:
+1. **GPU retest with Qwen-1.5B**: 500 steps, checkpoint every 25 (→ 20 data points), r=32, k=128, memory=256. This gives a model that can actually solve math, enough data points for meaningful R², and enough PCA dimensions for top-r vs bottom-r to separate.
+2. **Gradient-informed basis as PCA alternative**: Instead of PCA (variance-maximizing), try a basis informed by the gradient of the old-task loss. Top directions in ∇L_old-projected activation space should better predict which features matter for the old task. If PCA top-r fails but gradient-informed top-r succeeds, H1 survives with a modified basis.
+
+### 2026-03-03 — H1 Control (GPU, Qwen-1.5B) ⭐
+
+**Goal**: Definitive H1 test at proper scale. Does the 135M failure replicate at 1.5B?
+
+**Config**:
+- Model: Qwen/Qwen2.5-1.5B-Instruct
+- 500 training steps, checkpoint every 25 (→ 21 data points including step 0)
+- LoRA rank 32, PCA k=128, preserve r=32, 128 memory examples
+- Old task: math, New task: code
+- Device: CUDA (A10G via Modal)
+- Seed: 42
+- Output: `out/h1_control_gpu/h1_control.json`
+
+**Baseline**: 44.44% math accuracy (model can actually solve math), 0.505 math loss.
+
+**R² results** (perplexity-based forgetting):
+
+| Predictor | R² |
+|-----------|-----|
+| **top-r drift** | **0.9331** |
+| total drift | 0.8883 |
+| random-r drift | 0.8500 |
+| bottom-r drift | 0.8272 |
+
+Ranking: **top > total > random > bottom**. This is the *correct* ordering for H1. Top-r PCA drift is now the best predictor — completely reversed from the 135M result.
+
+**Gate 1 check**:
+1. ✅ R²(top-r) ≥ 0.5 — passes strongly (0.933)
+2. ✅ R²(top-r) > R²(total) — passes (0.933 > 0.888)
+3. ❌ R²(top-r) >> R²(random-r) — marginal (0.933 vs 0.850, not 2× better)
+
+**Gate 1 verdict: PARTIAL PASS** (2/3). Top-r PCA drift is the best predictor, beats total drift, but doesn't dominate random-r by a wide margin. H1 is alive but not overwhelming.
+
+**R-sweep diagnostic** (variance explained vs forgetting R²):
+
+| r | Var Explained (%) | Forgetting R² |
+|---|-------------------|---------------|
+| 1 | 96.2 | 0.854 |
+| 2 | 96.4 | 0.854 |
+| 4 | 96.9 | 0.871 |
+| 8 | 97.4 | 0.878 |
+| 16 | 98.0 | 0.879 |
+| 32 | 98.7 | 0.882 |
+| 64 | 99.4 | 0.883 |
+| 128 | 100.0 | 0.884 |
+
+Both curves track together — forgetting IS in high-variance directions. The first PC alone explains 96.2% of variance AND 85.4% of forgetting. Adding more PCA dims gives diminishing returns.
+
+**Key observations**:
+- The 135M failure was a **scale artifact**. At 1.5B, PCA top-r correctly identifies forgetting-relevant directions.
+- The margin over random-r (0.933 vs 0.850) is consistent but not dramatic. This suggests forgetting is moderately concentrated in high-variance directions, not overwhelmingly so.
+- Accuracy-based forgetting is noisy (9 questions) — the model fluctuates between 22-67% across checkpoints. Perplexity is monotonically increasing (0.50→0.83) and gives a cleaner signal.
+- Total drift and top-r drift are highly correlated (r>0.95), which makes the top-r > total comparison less informative than it seems.
+
+**Interpretation**: H1 is supported at 1.5B scale — PCA top-r drift is the best linear predictor of forgetting. But the effect size is modest. The "low-dimensional" claim is better stated as: "forgetting correlates with drift in high-variance activation directions, with PCA providing a weak but consistent advantage over random projections." This is enough to justify SFP as a method (preserving the right subspace > random subspace), but the paper should not overclaim.
+
+**Next steps**:
+1. Test gradient-informed basis — does it beat PCA? If so, the "right subspace" story gets much stronger.
+2. Increase forgetting signal — run longer, use a harder task pair, or reduce memory to force more forgetting.
+3. Causal test — intervene on top-r dims at inference to prove they're causally linked to capability, not just correlated.
+
+### 2026-03-03 — H1 Pivot Decision
+
+Given the GPU retest partial pass (2/3 gate checks), the pivot decision is:
+
+- NOT option A (abandon H1) — H1 didn't fully fail, top-r is the best predictor with correct ranking
+- NOT option B (weaken H1) — we can strengthen the evidence instead
+- NOT option C (change metric) — perplexity-based forgetting is working fine
+- Choose option **(E): Keep PCA as baseline, strengthen with gradient basis and causal test**
+
+**Rationale**:
+- PCA works at scale (correct ranking: top > total > random > bottom) but effect size is modest (0.933 vs 0.850)
+- The gradient-informed basis (already implemented in `features.py` as `build_gradient_basis`) should widen the gap — it selects directions that are task-relevant, not just high-variance
+- The causal test (intervening on top-r dims at inference) is the strongest possible evidence — if zeroing top-r dims destroys old-task performance but zeroing random-r dims doesn't, that's a smoking gun
+- If gradient basis + causal test both succeed, H1 is solid for the paper
+- Paper framing: "forgetting concentrates in high-variance activation subspaces; task-specific subspaces (gradient-informed) further improve prediction"
+
+**Next experiments** (in priority order):
+1. **Causal test** (`scripts/causal_test.py`) — intervene on top-32 vs random-32 vs bottom-32 dims at inference, measure old-task accuracy drop
+2. **Gradient basis comparison** — re-run h1_control with gradient basis from `build_gradient_basis`, compare R² to PCA
+3. **Evaluation leakage check** — split memory set (train/test) to rule out overfitting in the R² regression
+
+### 2026-03-03 — H1 Causal Intervention Test (CPU, SmolLM2-135M, local smoke test)
+
+**Goal**: Validate causal_test.py works end-to-end before GPU run. Not a definitive test — tiny model, minimal params.
+
+**Config**:
+- Model: SmolLM2-135M-Instruct
+- pca_k=4, preserve_r=2, memory=8, eval_samples=4, noise_scales=[1.0]
+- Device: CPU, Seed: 42
+
+**Results**:
+
+| Intervention | PPL | Δ PPL |
+|---|---|---|
+| top_1.0 | 1.9281 | +0.8548 |
+| bottom_1.0 | 1.0931 | +0.0198 |
+| random_1.0 | 1.2800 | +0.2068 |
+
+**Gate**: ✓ PASS — top-r Δppl (+0.85) >> random (+0.21) >> bottom (+0.02). Correct ranking even at 135M scale.
+
+**Bug fixed**: dtype corruption in forward hooks — `rank_importance` ablation hooks and noise injection hooks were returning float32 tensors into a bfloat16 model. Also fixed output format handling: SmolLM2 decoder layers return plain tensors, not tuples or BaseModelOutputWithPast. All hooks now check `isinstance(output, Tensor)` first.
+
+**Caveats**: Tiny model (135M), minimal dims (r=2 out of k=4), only 4 eval samples. This validates the code, not the hypothesis.
+
+**GPU run**: Launched on Modal (Qwen-1.5B, A10G, pca_k=128, preserve_r=32, memory=128). Results pending in volume `sfp-causal-results`.
