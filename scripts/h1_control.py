@@ -393,15 +393,19 @@ def main():
         optimizer.step()
         optimizer.zero_grad()
 
-        if step % 50 == 0:
-            print(f"  step {step}/{args.steps} | loss {out.loss.item():.4f}")
+        if step % 5 == 0:
+            print(f"  step {step}/{args.steps} | loss {out.loss.item():.4f}", flush=True)
 
         # Checkpoint: collect activations + eval
         if step % args.every == 0 or step == args.steps:
             model.eval()
 
             # Evaluate forgetting
-            current_acc = eval_math_quick(model, tokenizer, device)
+            # Skip expensive generation-based eval if baseline acc is 0
+            if baseline_acc > 0:
+                current_acc = eval_math_quick(model, tokenizer, device)
+            else:
+                current_acc = 0.0
             forgetting = max(0.0, baseline_acc - current_acc)
             current_ppl = eval_math_perplexity(model, tokenizer, memory_set, device)
             forgetting_ppl = max(0.0, current_ppl - baseline_ppl)
@@ -463,7 +467,8 @@ def main():
                 f"drift_top={record['drift_top_r']:.4f} "
                 f"drift_rand={record['drift_random_r']:.4f} "
                 f"drift_total={record['drift_total']:.4f} "
-                f"({elapsed:.0f}s)"
+                f"({elapsed:.0f}s)",
+                flush=True,
             )
 
             model.train()
