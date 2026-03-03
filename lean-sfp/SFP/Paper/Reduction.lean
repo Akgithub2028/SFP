@@ -105,7 +105,8 @@ theorem stability_plasticity_tradeoff
   · exact sfp_reduces_forgetting W forgetting a a_star C hC h_H1 δ hδ h_loss
   · -- From Pythagorean: ‖Δa‖² = L_pres + ‖P⊥(Δa)‖²
     -- So ‖P⊥(Δa)‖² = ‖Δa‖² - L_pres ≥ ‖Δa‖² - δ
-    sorry
+    have hpy := drift_pythagorean_decomposition W a a_star
+    nlinarith [preservationLoss_nonneg W a a_star]
 
 end Reduction
 

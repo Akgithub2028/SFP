@@ -149,7 +149,7 @@ python analyze.py --compare out/sfp out/sfp_grad_importance
 
 ## Conventions
 
-- **All Docker**: Lean builds in Docker (`sfp-lean`), LaTeX builds in Docker (`sfp-latex`). No local installations required.
+- **All Docker**: Lean and LaTeX build in Docker. The `sfp-lean` image caches Mathlib and the toolchain; source files are volume-mounted at build time so you never rebuild the image just to iterate on proofs. Run `make lean-build` once to create the image, then `make lean` to build with your local changes. `make lean-sorry` runs a local grep — no Docker needed.
 - **Small diffs**: when editing methods.py or features.py, make the smallest change. Methods are plain functions, not classes.
 - **Gate before formalize**: never spend time formalizing a claim that hasn't survived an experiment.
 - **Sorry budget**: `sorry` is fine for standard Mathlib facts (projections, Pythagorean). Never `sorry` the reduction theorems.
@@ -159,15 +159,18 @@ python analyze.py --compare out/sfp out/sfp_grad_importance
 
 ### Proved (no sorry)
 - `sfp_reduces_forgetting`: the main reduction H1 → forgetting bound ✅
+- `sfp_reduces_forgetting_multilayer`: per-layer version ✅
+- `stability_plasticity_tradeoff`: stability bound + plasticity lower bound ✅
 - `gradient_orthogonality`: P(∇L_new) = 0 at preserved stationary point ✅
+- `gradient_in_complement`: ∇L_new ∈ W⊥ at preserved stationary point ✅
 - `gradient_projection_at_stationary`: P(∇L_new) = -2λv (general) ✅
+- `orthogonalProjection_idempotent`, `_selfAdjoint`, `_norm_le`, `_complement` ✅
 - `preservationLoss_nonneg`, `_eq_zero_iff`, `subspace_drift_bound` ✅
+- `preservationLoss_le_total_drift`, `drift_pythagorean_decomposition` ✅
+- `multiLayerPreservationLoss_nonneg` ✅
 
 ### Needs proof (sorry, standard facts)
-- `orthogonalProjection_selfAdjoint`, `_norm_le`, `_complement`
-- `orthonormal_projection_formula`
-- `preservationLoss_le_total_drift`, `drift_pythagorean_decomposition`
-- `stability_plasticity_tradeoff` (plasticity half)
+- `orthonormal_projection_formula` — Px = Σᵢ ⟨x,uᵢ⟩uᵢ (bridge between Orthonormal and OrthonormalBasis APIs)
 
 ### Needs experiments
 - H1: R² of top-r drift vs. forgetting (target: ≥ 0.6)

@@ -230,11 +230,16 @@ if __name__ == "__main__":
             memory_buffers[task_name] = buf
             data.save_memory(buf, os.path.join(cfg["out_dir"], f"memory_{task_name}.jsonl"))
 
-        # Build combined memory from all *previous* task buffers
+        # Build combined memory from all *previous* task buffers, capped at M total
         combined_memory: list[dict] = []
-        for prev_task in tasks[:task_idx]:
-            if prev_task in memory_buffers:
-                combined_memory.extend(memory_buffers[prev_task])
+        prev_buffers = {t: memory_buffers[t] for t in tasks[:task_idx] if t in memory_buffers}
+        if prev_buffers and cfg["memory"] > 0:
+            per_task = max(1, cfg["memory"] // len(prev_buffers))
+            for t in tasks[:task_idx]:
+                if t in prev_buffers:
+                    combined_memory.extend(prev_buffers[t][:per_task])
+            # Final cap in case of rounding
+            combined_memory = combined_memory[:cfg["memory"]]
 
         # Method-specific setup at task boundary
         method_state = method_setup(

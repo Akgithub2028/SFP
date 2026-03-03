@@ -45,7 +45,8 @@ theorem subspace_drift_bound (a a_star : E) :
 theorem preservationLoss_le_total_drift (a a_star : E) :
     preservationLoss W a a_star ≤ ‖a - a_star‖ ^ 2 := by
   unfold preservationLoss
-  sorry
+  have h := SFP.orthogonalProjection_norm_le W (a - a_star)
+  nlinarith [norm_nonneg (orthogonalProjection W (a - a_star) : E), norm_nonneg (a - a_star)]
 
 /-- ‖Δa‖² = L_pres + ‖P⊥(Δa)‖² (Pythagorean).
     Paper reference: Theorem 2 (stability-plasticity decomposition). -/
@@ -54,7 +55,10 @@ theorem drift_pythagorean_decomposition (a a_star : E) :
     preservationLoss W a a_star +
     ‖(orthogonalProjection Wᗮ (a - a_star) : E)‖ ^ 2 := by
   unfold preservationLoss
-  sorry
+  have h := norm_sq_eq_add_norm_sq_projection (a - a_star) W
+  simp only [sq] at h ⊢
+  simp only [Submodule.coe_norm] at h
+  linarith
 
 end PreservationLoss
 

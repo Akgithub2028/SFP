@@ -25,12 +25,15 @@ test:
 lean-build:
 	docker build -t $(LEAN_IMG) $(LEAN_DIR)
 
-lean: lean-build
-	docker run --rm $(LEAN_IMG) build
+lean:
+	docker run --rm \
+		-v $(CURDIR)/$(LEAN_DIR)/SFP:/lean-sfp/SFP \
+		-v $(CURDIR)/$(LEAN_DIR)/SFP.lean:/lean-sfp/SFP.lean \
+		$(LEAN_IMG) build
 
-lean-sorry: lean-build
+lean-sorry:
 	@echo "=== sorry count ==="
-	@docker run --rm $(LEAN_IMG) env grep -rn sorry SFP/ || echo "No sorry found!"
+	@grep -rn sorry $(LEAN_DIR)/SFP/ || echo "No sorry found!"
 
 # --- LaTeX (dockerized) ---
 paper-docker-build:
