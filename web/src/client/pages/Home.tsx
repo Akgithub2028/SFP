@@ -10,38 +10,15 @@ import Footer from "@/components/Footer";
 export default function Home() {
   const [benchmark, setBenchmark] = useState<Benchmark | null>(null);
   const [entries, setEntries] = useState<Entry[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
 
   useEffect(() => {
-    async function load() {
-      const lb = await fetchLeaderboard();
+    fetchLeaderboard().then((lb) => {
       if (lb) {
         setBenchmark(lb.benchmark);
         setEntries(lb.entries);
-      } else {
-        setError(true);
       }
-      setLoading(false);
-    }
-    load();
+    });
   }, []);
-
-  if (loading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center" style={{ color: "var(--text-dim)" }}>
-        Loading...
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="flex min-h-screen items-center justify-center" style={{ color: "var(--text-dim)" }}>
-        Failed to load leaderboard data.
-      </div>
-    );
-  }
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
