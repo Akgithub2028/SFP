@@ -1,31 +1,31 @@
 \section{Method}
 \label{sec:method}
 
-We describe Sparse Feature Preservation (SFP) in three parts: the empirical hypothesis that motivates the method (\cref{sec:hypothesis}), the preservation algorithm (\cref{sec:algorithm}), and the formally verified mathematical properties (\cref{sec:formal}).
+We describe Sparse Feature Preservation in three parts: the empirical hypothesis that motivates the method (\cref{sec:hypothesis}), the preservation algorithm (\cref{sec:algorithm}), and the formally verified mathematical properties (\cref{sec:formal}).
 
 \subsection{Hypothesis: Forgetting is Low-Dimensional}
 \label{sec:hypothesis}
 
-Let $f_\theta$ be a language model with parameters $\theta$, and let $a_\ell(\theta) \in \R^d$ denote the activation vector at layer $\ell$ for a given input.
-When we fine-tune from $\theta^*$ (pre-trained) to $\theta'$ (fine-tuned on a new task), the activation drift at layer $\ell$ is $\Delta a_\ell = a_\ell(\theta') - a_\ell(\theta^*)$.
+Let $f_\theta$ be a language model with parameters $\theta$, and let $a_\ell(\theta) \in \R^d$ denote the mean-pooled activation vector at layer $\ell$ for a given input.
+When we fine-tune from $\theta^*$ (anchor) to $\theta'$ (fine-tuned), the activation drift at layer $\ell$ is $\Delta a_\ell = a_\ell(\theta') - a_\ell(\theta^*)$.
 
-Let $U \in \R^{d \times k}$ be a PCA basis computed from old-task activations at layer $\ell$, and let $U_r \in \R^{d \times r}$ ($r \ll k \ll d$) be the submatrix corresponding to the top-$r$ most important dimensions, ranked by ablation importance.
-We define the \emph{projected drift} in the important subspace as $P_W(\Delta a_\ell) = U_r U_r^\top \Delta a_\ell$, where $W = \text{col}(U_r)$.
+Let $U \in \R^{d \times k}$ be a PCA basis computed from old-task activations at layer $\ell$, and let $U_r \in \R^{d \times r}$ ($r \ll k \ll d$) be the submatrix of the top-$r$ most important dimensions ranked by ablation.
+The projected drift in the important subspace is $\PW(\Delta a_\ell) = U_r U_r^\top \Delta a_\ell$, where $W = \text{col}(U_r)$.
 
 \begin{hypothesis}[H1: Low-Dimensional Forgetting]
 \label{hyp:h1}
-There exists a constant $C > 0$ such that old-task performance degradation (forgetting) satisfies
+There exists a constant $C > 0$ such that old-task performance degradation satisfies
 \begin{equation}
-    \text{forgetting} \leq C \cdot \| P_W(\Delta a) \|,
+    \text{forgetting} \leq C \cdot \| \PW(\Delta a) \|,
     \label{eq:h1}
 \end{equation}
-and the projected drift $\| P_W(\Delta a) \|$ using the top-$r$ importance-ranked dimensions is a significantly better predictor of forgetting than total drift $\| \Delta a \|$, random-dimension drift, or bottom-ranked drift.
+and the projected drift $\| \PW(\Delta a) \|$ using the top-$r$ importance-ranked dimensions is a better predictor of forgetting than total drift $\| \Delta a \|$, random-dimension drift, or bottom-ranked drift.
 \end{hypothesis}
 
-This hypothesis is \emph{falsifiable}: we pre-register four predictors (top-$r$, total, random, bottom-$r$) and require the ranking top $>$ total $>$ random $>$ bottom in terms of $R^2$ for predicting forgetting across training checkpoints.
+This hypothesis is \emph{falsifiable}: we pre-register four predictors (top-$r$, total, random, bottom-$r$) and require the ranking top $>$ total $>$ random $>$ bottom in $R^2$ for predicting forgetting across training checkpoints.
 
 \paragraph{Ablation importance.}
-Given the PCA basis $U = [u_1, \ldots, u_k]$, we define the importance of dimension $i$ as the increase in old-task loss when that dimension is zeroed out in the activation:
+Given the PCA basis $U = [u_1, \ldots, u_k]$, the importance of dimension $i$ is the increase in old-task loss when that dimension is zeroed out:
 \begin{equation}
     \text{imp}(i) = \mathcal{L}_{\text{old}}\!\left(a_\ell - (u_i^\top a_\ell)\, u_i\right) - \mathcal{L}_{\text{old}}(a_\ell),
     \label{eq:importance}
@@ -33,58 +33,47 @@ Given the PCA basis $U = [u_1, \ldots, u_k]$, we define the importance of dimens
 averaged over the memory set.
 The top-$r$ dimensions are those with the largest importance scores.
 
-\subsection{Sparse Feature Preservation Algorithm}
+\subsection{SFP Algorithm}
 \label{sec:algorithm}
 
-SFP operates in two phases: a \emph{basis construction} phase (before training) and a \emph{preservation} phase (during training).
+SFP operates in two phases: \emph{basis construction} (before training) and \emph{preservation} (during training).
 
 \paragraph{Phase 1: Basis construction.}
-Given a small memory set $\mathcal{M}$ of old-task examples (typically 128 examples), we:
-\begin{enumerate}
-    \item Run $\mathcal{M}$ through the pre-trained model $f_{\theta^*}$, hooking activations at layers $\ell \in \mathcal{L}$ (we use $\mathcal{L} = \{L/4, L/2, 3L/4\}$ where $L$ is the total depth).
-    \item Compute the PCA basis $U_\ell \in \R^{d \times k}$ from the collected activations at each probe layer.
-    \item Compute ablation importance (\cref{eq:importance}) for each PCA dimension at each layer.
-    \item Select the top-$r$ dimensions per layer, yielding projection matrices $P_{W_\ell} = U_{r,\ell} U_{r,\ell}^\top$.
-    \item Record reference activations $a_\ell^* = a_\ell(\theta^*)$ for the memory set.
-\end{enumerate}
+Given a memory set $\mathcal{M}$ of old-task examples (typically 128), we:
+(1)~collect activations at probe layers $\mathcal{L} = \{L/4, L/2, 3L/4\}$;
+(2)~compute PCA basis $U_\ell \in \R^{d \times k}$ per layer;
+(3)~compute ablation importance per dimension;
+(4)~select top-$r$ dimensions, yielding $U_{r,\ell}$;
+(5)~record reference activations $a_\ell^* = a_\ell(\theta^*)$.
 
 \paragraph{Phase 2: Preservation during training.}
-The training loss combines the new-task loss with a preservation penalty:
+The training loss combines the new-task objective with a preservation penalty:
 \begin{equation}
-    \mathcal{L}(\theta) = \mathcal{L}_{\text{new}}(\theta) + \lambda \sum_{\ell \in \mathcal{L}} \underbrace{\| U_{r,\ell}^\top a_\ell(\theta) - U_{r,\ell}^\top a_\ell(\theta^*) \|^2}_{\mathcal{L}_{\text{pres},\ell}(\theta)},
+    \mathcal{L}(\theta) = \Lnew(\theta) + \lambda \sum_{\ell \in \mathcal{L}} \underbrace{\| U_{r,\ell}^\top a_\ell(\theta) - U_{r,\ell}^\top a_\ell(\theta^*) \|^2}_{\mathcal{L}_{\text{pres},\ell}(\theta)},
     \label{eq:sfp_loss}
 \end{equation}
 where $\lambda > 0$ controls the stability--plasticity trade-off.
-
-The per-layer preservation loss $\mathcal{L}_{\text{pres},\ell}$ measures drift \emph{only} in the important subspace $W_\ell$.
-By construction, the model is free to change activations in the complement $W_\ell^\perp$---this is where new-task learning should occur.
+By construction, the model is free to change activations in the complement $W_\ell^\perp$.
 
 \paragraph{Gradient-informed variant.}
-As an alternative to PCA, we also implement a gradient-informed basis: compute $G = \partial \mathcal{L}_{\text{old}} / \partial a_\ell$ on the memory set, and take the top-$r$ right singular vectors of $G$ as the preservation basis.
-This directly identifies directions that the old-task loss is most sensitive to, at the cost of requiring a backward pass through the old-task loss during basis construction.
+As an alternative to PCA, we compute $G = \partial \mathcal{L}_{\text{old}} / \partial a_\ell$ on the memory set and take the top-$r$ right singular vectors of $G$ as the preservation basis.
+This directly identifies directions the old-task loss is most sensitive to.
 
 \begin{algorithm}[t]
-\caption{Sparse Feature Preservation (SFP)}
+\caption{Sparse Feature Preservation}
 \label{alg:sfp}
 \begin{algorithmic}[1]
-\REQUIRE Pre-trained model $f_{\theta^*}$, memory set $\mathcal{M}$, new-task data $\mathcal{D}_{\text{new}}$, probe layers $\mathcal{L}$, PCA dims $k$, preserve dims $r$, weight $\lambda$
+\REQUIRE Model $f_{\theta^*}$, memory set $\mathcal{M}$, new data $\mathcal{D}$, layers $\mathcal{L}$, dims $k$, $r$, weight $\lambda$
 \STATE \textbf{// Phase 1: Basis construction}
 \FOR{$\ell \in \mathcal{L}$}
     \STATE Collect activations $A_\ell = \{a_\ell(\theta^*, x) : x \in \mathcal{M}\}$
-    \STATE Compute PCA: $U_\ell = \text{PCA}(A_\ell, k)$
-    \FOR{$i = 1, \ldots, k$}
-        \STATE $\text{imp}_\ell(i) \leftarrow \E_{x \in \mathcal{M}}[\mathcal{L}_{\text{old}}(a_\ell - (u_i^\top a_\ell) u_i) - \mathcal{L}_{\text{old}}(a_\ell)]$
-    \ENDFOR
-    \STATE $U_{r,\ell} \leftarrow$ top-$r$ columns of $U_\ell$ by $\text{imp}_\ell$
-    \STATE Store reference: $a_\ell^* \leftarrow \{a_\ell(\theta^*, x) : x \in \mathcal{M}\}$
+    \STATE $U_\ell \leftarrow \text{PCA}(A_\ell, k)$; rank dims by ablation importance
+    \STATE $U_{r,\ell} \leftarrow$ top-$r$ columns; store $a_\ell^*$
 \ENDFOR
-\STATE \textbf{// Phase 2: Fine-tuning with preservation}
-\FOR{each batch $B \sim \mathcal{D}_{\text{new}}$}
-    \STATE $\mathcal{L} \leftarrow \mathcal{L}_{\text{new}}(B; \theta)$
-    \FOR{$\ell \in \mathcal{L}$}
-        \STATE $\mathcal{L} \leftarrow \mathcal{L} + \lambda \| U_{r,\ell}^\top a_\ell(\theta) - U_{r,\ell}^\top a_\ell^* \|^2$
-    \ENDFOR
-    \STATE Update $\theta$ via gradient descent on $\mathcal{L}$
+\STATE \textbf{// Phase 2: Fine-tuning}
+\FOR{each batch $B \sim \mathcal{D}$}
+    \STATE $\mathcal{L} \leftarrow \Lnew(B; \theta) + \lambda \sum_\ell \| U_{r,\ell}^\top a_\ell(\theta) - U_{r,\ell}^\top a_\ell^* \|^2$
+    \STATE Update $\theta$ via gradient descent
 \ENDFOR
 \end{algorithmic}
 \end{algorithm}
@@ -92,46 +81,37 @@ This directly identifies directions that the old-task loss is most sensitive to,
 \subsection{Formally Verified Properties}
 \label{sec:formal}
 
-We formalize the mathematical properties of SFP in Lean~4 using the Mathlib library (v4.17.0).
-The formalization comprises approximately 1,200 lines of Lean code with \textbf{zero} \texttt{sorry} axioms---every theorem is fully machine-checked.
+We formalize SFP's mathematical properties in Lean~4 using Mathlib (v4.17.0).
+The formalization comprises approximately 1{,}200 lines of Lean with \textbf{zero} \texttt{sorry} axioms.
 
-\begin{definition}[Preservation Loss]
+\begin{definition}[Preservation Loss, \texttt{preservationLoss}]
 \label{def:pres_loss}
-For an orthogonal projection $P_W : \R^d \to W$ onto a subspace $W$ spanned by the top-$r$ importance-ranked basis vectors, the preservation loss is
-\begin{equation}
-    \mathcal{L}_{\text{pres}} = \| P_W(a(\theta) - a(\theta^*)) \|^2 = \| P_W(\Delta a) \|^2.
-\end{equation}
+For an orthogonal projection $\PW$ onto subspace $W$,
+$\Lpres = \| \PW(\Delta a) \|^2$.
 \end{definition}
 
-The following properties are verified in Lean:
-
-\begin{proposition}[Preservation Loss Properties, \texttt{preservationLoss\_nonneg}, \texttt{preservationLoss\_eq\_zero\_iff}]
+\begin{proposition}[\texttt{preservationLoss\_nonneg}, \texttt{preservationLoss\_eq\_zero\_iff}]
 \label{prop:loss_props}
-$\mathcal{L}_{\text{pres}} \geq 0$, with equality if and only if $\Delta a \in W^\perp$ (\ie the drift is entirely in the complement of the preserved subspace).
+$\Lpres \geq 0$, with equality iff $\Delta a \in W^\perp$.
 \end{proposition}
 
 \begin{proposition}[Pythagorean Decomposition, \texttt{drift\_pythagorean\_decomposition}]
 \label{prop:pythag}
-The total drift decomposes as
-\begin{equation}
-    \| \Delta a \|^2 = \mathcal{L}_{\text{pres}} + \| P_{W^\perp}(\Delta a) \|^2.
-    \label{eq:pythagorean}
-\end{equation}
-Hence $\mathcal{L}_{\text{pres}} \leq \| \Delta a \|^2$ (\texttt{preservationLoss\_le\_total\_drift}): preserving the important subspace is a strictly easier constraint than preventing all drift.
+Total drift decomposes as
+$\| \Delta a \|^2 = \Lpres + \| P_{W^\perp}(\Delta a) \|^2$.
+Hence $\Lpres \leq \| \Delta a \|^2$: preserving the important subspace is strictly easier than preventing all drift.
 \end{proposition}
 
-\begin{proposition}[Gradient Orthogonality, \texttt{gradient\_orthogonality}, \texttt{gradient\_in\_complement}]
+\begin{proposition}[Gradient Orthogonality, \texttt{gradient\_orthogonality}]
 \label{prop:grad_orth}
-At a stationary point of the combined loss $\mathcal{L}_{\text{new}} + \lambda \mathcal{L}_{\text{pres}}$ where $\mathcal{L}_{\text{pres}} = 0$, the gradient of the new-task loss satisfies $P_W(\nabla \mathcal{L}_{\text{new}}) = 0$, \ie $\nabla \mathcal{L}_{\text{new}} \in W^\perp$.
-The new-task gradient is entirely in the complement of the preserved subspace.
+At a stationary point of $\Lnew + \lambda \Lpres$ where $\Lpres = 0$, the new-task gradient satisfies $\PW(\nabla \Lnew) = 0$, \ie $\nabla \Lnew \in W^\perp$.
+New-task learning occurs only in directions orthogonal to the preserved features.
 \end{proposition}
-
-This last property formalizes the intuition that SFP achieves a clean separation: at convergence, new-task learning occurs only in directions orthogonal to the important features.
 
 \begin{theorem}[Main Reduction, \texttt{sfp\_reduces\_forgetting}]
 \label{thm:main}
-Assume H1 (\cref{hyp:h1}): $\text{forgetting} \leq C \cdot \| P_W(\Delta a) \|$ for some $C > 0$.
-If training with SFP achieves $\mathcal{L}_{\text{pres}} \leq \delta$, then
+Assume H1 (\cref{hyp:h1}): $\text{forgetting} \leq C \cdot \| \PW(\Delta a) \|$ for $C \geq 0$.
+If $\Lpres \leq \delta$, then
 \begin{equation}
     \text{forgetting} \leq C \sqrt{\delta}.
     \label{eq:reduction}
@@ -139,24 +119,18 @@ If training with SFP achieves $\mathcal{L}_{\text{pres}} \leq \delta$, then
 \end{theorem}
 
 \begin{proof}[Proof sketch]
-By definition, $\mathcal{L}_{\text{pres}} = \| P_W(\Delta a) \|^2$.
-If $\mathcal{L}_{\text{pres}} \leq \delta$, then $\| P_W(\Delta a) \| \leq \sqrt{\delta}$.
-By H1, $\text{forgetting} \leq C \| P_W(\Delta a) \| \leq C\sqrt{\delta}$.
-The full proof in Lean verifies that $P_W$ is an orthogonal projection (idempotent, self-adjoint) and that the norm inequality follows from the projection's contractive property (\texttt{orthogonalProjection\_norm\_le}).
+$\Lpres = \| \PW(\Delta a) \|^2 \leq \delta$ implies $\| \PW(\Delta a) \| \leq \sqrt{\delta}$.
+By H1, $\text{forgetting} \leq C\sqrt{\delta}$.
+The full Lean proof verifies that $\PW$ is an orthogonal projection (idempotent, self-adjoint, norm-contractive).
 \end{proof}
-
-\begin{theorem}[Multi-Layer Extension, \texttt{sfp\_reduces\_forgetting\_multilayer}]
-\label{thm:multilayer}
-If forgetting decomposes across layers as $\text{forgetting} \leq \sum_\ell C_\ell \| P_{W_\ell}(\Delta a_\ell) \|$ and $\sum_\ell \mathcal{L}_{\text{pres},\ell} \leq \delta$, then $\text{forgetting} \leq (\sum_\ell C_\ell) \sqrt{\delta / |\mathcal{L}|}$ by Cauchy--Schwarz.
-\end{theorem}
 
 \begin{theorem}[Stability--Plasticity Trade-off, \texttt{stability\_plasticity\_tradeoff}]
 \label{thm:tradeoff}
-The preservation loss provides an upper bound on forgetting (stability) while the Pythagorean decomposition (\cref{eq:pythagorean}) guarantees that $\| P_{W^\perp}(\Delta a) \|^2 = \| \Delta a \|^2 - \mathcal{L}_{\text{pres}}$ remains available for new-task learning (plasticity).
-As $\lambda \to \infty$, $\mathcal{L}_{\text{pres}} \to 0$ and forgetting is minimized, but learning is confined to $W^\perp$.
+Under the same conditions, (i)~forgetting $\leq C\sqrt{\delta}$ (stability), and (ii)~$\| P_{W^\perp}(\Delta a) \|^2 \geq \| \Delta a \|^2 - \delta$ (plasticity).
+As $\lambda \to \infty$, forgetting vanishes but learning is confined to $W^\perp$.
 \end{theorem}
 
-\paragraph{What is and is not verified.}
-The formalization verifies the \emph{mathematical} chain from H1 to the forgetting bound.
+\paragraph{Scope of verification.}
+The formalization verifies the mathematical chain from H1 to the forgetting bound.
 It does \emph{not} verify H1 itself---that is an empirical claim tested in \cref{sec:experiments}.
-This separation is deliberate: the formal verification makes the logical structure transparent, so the reader knows exactly which claim requires empirical evidence.
+This separation is deliberate: the verification makes the logical structure transparent, so the reader knows exactly which claim requires empirical evidence.

@@ -1,45 +1,29 @@
 \section{Conclusion}
 \label{sec:conclusion}
 
-We presented Sparse Feature Preservation (SFP), a method for mitigating catastrophic forgetting in large language models during continual fine-tuning.
-SFP is motivated by a specific, falsifiable hypothesis: that forgetting is low-dimensional, concentrated in a small number of activation feature directions that can be identified via ablation importance ranking.
+We presented Sparse Feature Preservation (SFP), a method for mitigating catastrophic forgetting in LLMs by penalizing activation drift in a small, empirically identified subspace of important feature dimensions.
 
-\paragraph{Summary of results.}
-Our experiments provide partial but encouraging support for the low-dimensional forgetting hypothesis (H1).
-At the 1.5B scale (Qwen2.5-1.5B-Instruct), drift in the top-$r$ ablation-ranked dimensions predicts forgetting with $R^2 = 0.933$, significantly outperforming random dimensions ($0.850$) and bottom-ranked dimensions ($0.827$).
-The causal intervention test provides complementary evidence: even at the 135M scale where correlational H1 fails, perturbing top-$r$ dimensions causes $4\times$ more performance degradation than random dimensions, confirming that ablation importance correctly identifies causally important features.
-
-The formal verification in Lean~4 establishes a clean reduction: \emph{if} H1 holds, \emph{then} bounding the preservation loss $\mathcal{L}_{\text{pres}} \leq \delta$ guarantees forgetting $\leq C\sqrt{\delta}$.
-All theorems are machine-checked with zero \texttt{sorry} axioms, making the single empirical assumption (H1) fully explicit.
+\paragraph{Summary.}
+At 1.5B parameters, drift in top-$r$ ablation-ranked dimensions predicts forgetting with $R^2 = 0.933$, outperforming random ($0.850$) and bottom-ranked ($0.827$) dimensions.
+A causal intervention test confirms that ablation importance identifies causally important features: perturbing top-$r$ dimensions causes $4\times$ more degradation than random dimensions, even at 135M where the correlational test does not hold.
+The Lean~4 formalization establishes a clean conditional reduction---assuming H1, bounding $\Lpres \leq \delta$ implies forgetting $\leq C\sqrt{\delta}$---with zero \texttt{sorry} axioms.
 
 \paragraph{Limitations.}
-We are transparent about several limitations:
 \begin{enumerate}
-    \item \textbf{Scale.} Our experiments cover 135M--1.5B parameters. The low-dimensional forgetting hypothesis may behave differently at 7B+ scale, where the activation space is higher-dimensional and feature representations may be more disentangled.
+    \item \textbf{Scale.} H1 does not hold at 135M under our protocol. We have not tested at 7B+.
 
-    \item \textbf{LoRA confound.} All experiments use LoRA fine-tuning, which constrains updates to a low-rank subspace. This may artificially reduce the effective dimensionality of drift, making H1 easier to satisfy. Full fine-tuning experiments are needed to disentangle this effect.
+    \item \textbf{LoRA confound.} All experiments use LoRA, which constrains updates to a low-rank subspace. This may artificially reduce the dimensionality of drift. Full fine-tuning experiments are needed.
 
-    \item \textbf{The constant $C$.} The forgetting bound $C\sqrt{\delta}$ depends on an empirically estimated constant $C$ from the H1 regression. If $C$ is large, the bound may be vacuous. In our 1.5B experiments, the regression slope suggests a moderate $C$, but rigorous characterization requires more data points and model scales.
+    \item \textbf{The constant $C$.} The bound $C\sqrt{\delta}$ depends on an empirically estimated $C$. If $C$ is large, the bound is vacuous.
 
-    \item \textbf{Task coverage.} Our H1 validation focuses on the Math$\to$Code task pair. Different task pairs may exhibit different forgetting geometries, and the ablation importance ranking may not generalize across task types without re-computation.
+    \item \textbf{Task coverage.} H1 validation uses one task pair (Math$\to$Code). Different pairs may exhibit different forgetting geometries.
 
-    \item \textbf{Layer selection.} We use pre-registered probe layers at $L/4$, $L/2$, $3L/4$, but the optimal layer choice may vary by model and task. We do not currently search over layer configurations.
+    \item \textbf{Single seed.} Results are from a single random seed. Confidence intervals across seeds are not yet available.
 \end{enumerate}
 
 \paragraph{Future work.}
-Several directions follow naturally from this work:
-\begin{itemize}
-    \item \textbf{Scaling to 7B+ models.} The H1 hypothesis should be tested at larger scales where forgetting is a more pressing practical concern. We expect the low-dimensional structure to be \emph{more} pronounced at scale, based on the 135M$\to$1.5B trend.
-
-    \item \textbf{Gradient-informed basis.} Our gradient-informed variant (SVD of $\partial \mathcal{L}_{\text{old}} / \partial a$) may provide a better preservation basis than PCA, since it directly targets directions the old-task loss is sensitive to. Systematic comparison is ongoing.
-
-    \item \textbf{Feature interpretability (H3).} If the top-$r$ preserved features are semantically coherent (\eg encoding specific mathematical reasoning patterns), this would strengthen the mechanistic case for SFP and connect to the sparse autoencoder literature~\citep{bricken2023monosemanticity}.
-
-    \item \textbf{Multi-task sequences.} Extending SFP to longer task sequences, where the preserved subspace must accommodate multiple previous tasks simultaneously, is an important practical extension.
-
-    \item \textbf{Integration with replay.} SFP and replay are complementary: SFP preserves activation geometry while replay provides direct supervision. Combining both may yield better stability--plasticity trade-offs than either alone.
-\end{itemize}
-
-\paragraph{Broader impact.}
-As LLMs are increasingly fine-tuned for specialized applications, understanding and mitigating catastrophic forgetting becomes critical for maintaining the general capabilities that make these models useful.
-SFP contributes a principled, formally grounded approach to this problem, with the transparency benefit that its mathematical assumptions are machine-checked and its empirical assumptions are explicitly stated and testable.
+(1)~Scaling H1 to 7B+ models, where forgetting is a more pressing practical concern.
+(2)~Systematic comparison of the gradient-informed basis (SVD of $\partial \mathcal{L}_{\text{old}} / \partial a$) against PCA.
+(3)~Feature interpretability (H3): determining whether top-$r$ preserved features are semantically coherent.
+(4)~Multi-task sequences with cumulative preserved subspaces.
+(5)~Combining SFP with replay for complementary stability--plasticity benefits.

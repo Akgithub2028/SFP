@@ -2,40 +2,37 @@
 \label{sec:related}
 
 \paragraph{Continual learning and catastrophic forgetting.}
-Catastrophic forgetting---the tendency of neural networks to lose previously learned knowledge when trained on new tasks---has been studied extensively since \citet{mccloskey1989catastrophic} and \citet{french1999catastrophic}.
-The continual learning literature broadly organizes mitigations into three families: regularization-based, replay-based, and architecture-based methods~\citep{delange2021continual}.
+Catastrophic forgetting---the tendency of neural networks to lose previously learned knowledge when trained on new tasks---has been studied since \citet{mccloskey1989catastrophic} and \citet{french1999catastrophic}.
+The continual learning literature organizes mitigations into regularization-based, replay-based, and architecture-based families~\citep{delange2021continual}.
 SFP draws from all three: it regularizes activations (not weights), uses a small memory buffer for basis construction, and operates within a fixed architecture.
 
 \paragraph{Regularization methods.}
-Elastic Weight Consolidation~\citep[EWC;][]{kirkpatrick2017overcoming} penalizes changes to parameters deemed important for previous tasks, using the diagonal of the Fisher information matrix as an importance measure.
+Elastic Weight Consolidation~\citep[EWC;][]{kirkpatrick2017overcoming} penalizes changes to parameters deemed important via the diagonal Fisher information matrix.
 Synaptic Intelligence~\citep{zenke2017continual} computes importance online from the path integral of gradients.
-These methods operate in \emph{parameter space}, regularizing weight changes.
-SFP instead operates in \emph{activation space}, which is lower-dimensional and more directly tied to model behavior.
-Moreover, EWC's diagonal Fisher approximation can be poor for modern overparameterized models, while SFP's PCA basis adapts to the actual activation geometry.
+These methods operate in parameter space.
+SFP instead operates on a low-rank subspace of the activation space, which is more directly tied to model behavior: two parameter configurations can produce identical activations, but identical activations produce identical outputs.
 
 \paragraph{Knowledge distillation.}
-Learning without Forgetting~\citep[LwF;][]{li2017learning} distills the old model's output logits into the new model during fine-tuning.
-PODNet~\citep{douillard2020podnet} extends this to intermediate feature maps, penalizing changes in pooled hidden-state statistics.
-SFP is related to PODNet in that both preserve intermediate representations, but SFP is \emph{selective}: rather than penalizing all representational change, it identifies and preserves only the dimensions that matter for old-task performance, leaving the model free to learn in the complementary subspace.
+Learning without Forgetting~\citep[LwF;][]{li2017learning} distills the old model's output logits into the new model.
+PODNet~\citep{douillard2020podnet} extends distillation to intermediate feature maps, penalizing changes in pooled hidden-state statistics across all dimensions.
+SFP is related to PODNet in that both preserve intermediate representations, but SFP is \emph{selective}: it penalizes drift in only the $r$ dimensions that matter most for old-task performance (typically $r = 32$ out of $d = 1536$), leaving the complementary subspace free for new-task learning.
 
 \paragraph{Replay and memory.}
 Experience Replay~\citep{chaudhry2019tiny} maintains a small buffer of old-task examples and interleaves them during training.
-A-GEM~\citep{chaudhry2018efficient} uses the memory buffer to project gradients away from directions that would increase old-task loss.
-SFP uses a memory buffer, but only for \emph{basis construction} (extracting PCA directions and computing ablation importance), not for direct training.
-This distinction means SFP's memory requirements are small and fixed: the buffer is used once to build the basis, then discarded during training.
+A-GEM~\citep{chaudhry2018efficient} uses the buffer to project gradients away from directions that increase old-task loss.
+SFP uses a memory buffer only for basis construction---extracting PCA directions and computing ablation importance---not for direct training.
+The buffer is used once to build the basis, then discarded.
 
 \paragraph{Architectural methods.}
-Progressive Neural Networks~\citep{rusu2016progressive} allocate new parameters for each task.
-Orthogonal LoRA methods~\citep{qin2024exploring} constrain low-rank adapter updates to be orthogonal to the subspace of previous adapters, preventing interference by construction.
-SFP shares the geometric intuition of orthogonal methods---learning should occur in a subspace complementary to important features---but identifies the important subspace empirically via ablation rather than imposing it through adapter orthogonality.
-Our \texttt{gradient\_in\_complement} theorem (\cref{sec:formal}) formalizes this connection: at a preserved stationary point, the new-task gradient lies entirely in the complement of the preserved subspace.
+Progressive Neural Networks~\citep{rusu2016progressive} allocate new parameters per task.
+Orthogonal LoRA methods~\citep{qin2024exploring} constrain low-rank adapter updates to be orthogonal to the subspace of previous adapters.
+SFP shares the geometric intuition---learning should occur in a subspace complementary to important features---but identifies the important subspace empirically via ablation rather than imposing it through adapter orthogonality.
 
 \paragraph{Mechanistic interpretability.}
-Recent work on sparse autoencoders~\citep{bricken2023monosemanticity,cunningham2023sparse} and activation patching~\citep{meng2022locating,wang2023interpretability} has shown that individual directions in activation space can encode interpretable, causally relevant features.
-SFP's ablation-based importance ranking is conceptually related to activation patching: both assess the causal role of activation directions by measuring downstream effects of interventions.
-The connection to superposition theory~\citep{elhage2022toy} motivates our hypothesis that forgetting may be low-dimensional even in models that represent many features in superposition.
+Recent work on sparse autoencoders~\citep{bricken2023monosemanticity, cunningham2023sparse} and activation patching~\citep{meng2022locating, wang2023interpretability} has shown that individual activation directions can encode interpretable, causally relevant features.
+SFP's ablation importance ranking is conceptually related to activation patching: both assess the causal role of activation directions by measuring downstream effects of interventions.
 
 \paragraph{Formal verification in machine learning.}
-Formal verification of neural network properties has focused primarily on robustness certification~\citep{katz2017reluplex,wong2018provable}.
-To our knowledge, SFP is the first continual learning method with formally verified mathematical properties.
-Our Lean~4 formalization~\citep{mathlib2020} verifies the complete reduction from the empirical hypothesis (H1) to a forgetting bound, making the logical structure of the argument machine-checkable and the assumptions explicit.
+Formal verification of neural network properties has focused on robustness certification~\citep{katz2017reluplex, wong2018provable}.
+To our knowledge, no prior continual learning method has its core mathematical reduction fully machine-checked in a proof assistant.
+Our Lean~4 formalization~\citep{mathlib2020} verifies the complete chain from the empirical hypothesis to a forgetting bound, making the logical structure transparent and the assumptions explicit.

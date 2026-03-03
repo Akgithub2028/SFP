@@ -1,5 +1,7 @@
 \documentclass{article}
 
+\usepackage[preprint]{neurips_2025}
+
 \usepackage[utf8]{inputenc}
 \usepackage[T1]{fontenc}
 \usepackage{amsmath,amssymb,amsfonts,amsthm}
@@ -10,10 +12,10 @@
 \usepackage{xcolor}
 \usepackage{algorithm}
 \usepackage{algorithmic}
-\usepackage{natbib}
 \usepackage{microtype}
 \usepackage{subcaption}
 \usepackage{xspace}
+\usepackage{nicefrac}
 
 \graphicspath{{figures/}}
 
@@ -24,32 +26,37 @@
 \newcommand{\R}{\mathbb{R}}
 \newcommand{\E}{\mathbb{E}}
 \newcommand{\todo}[1]{\textcolor{red}{[TODO: #1]}}
+\newcommand{\Lpres}{\mathcal{L}_{\text{pres}}}
+\newcommand{\Lnew}{\mathcal{L}_{\text{new}}}
+\newcommand{\PW}{P_W}
 
 % Theorem environments
 \newtheorem{theorem}{Theorem}[section]
 \newtheorem{proposition}[theorem]{Proposition}
+\newtheorem{corollary}[theorem]{Corollary}
 \newtheorem{definition}[theorem]{Definition}
 \newtheorem{hypothesis}[theorem]{Hypothesis}
 
-\title{Sparse Feature Preservation: Formally Verified Forgetting Mitigation\\via Low-Dimensional Activation Drift}
+\title{Sparse Feature Preservation:\\Formally Verified Forgetting Mitigation via Low-Dimensional Activation Drift}
+
 \author{
-    Author One\thanks{Paradigm} \and
-    Author Two
+  Paradigm Research \\
+  \texttt{https://github.com/paradigmxyz/sfp}
 }
-\date{\today}
 
 \begin{document}
 
 \maketitle
 
 \begin{abstract}
-Catastrophic forgetting remains a central challenge for continual fine-tuning of large language models.
-We propose \textbf{Sparse Feature Preservation} (SFP), a method that identifies a small set of causally important activation feature dimensions via ablation ranking and penalizes drift in those dimensions during fine-tuning.
-SFP is grounded in a falsifiable hypothesis: that forgetting is \emph{low-dimensional}---predictable from drift in a few top-ranked activation directions rather than from total representational change.
-We formally verify the mathematical core of SFP in Lean~4 with zero \texttt{sorry} axioms, establishing a reduction: if forgetting is bounded by projected drift (our empirical hypothesis H1) and the preservation loss is bounded by $\delta$, then forgetting is bounded by $C\sqrt{\delta}$.
-Experiments on Qwen2.5-1.5B-Instruct in a Math$\to$Code continual learning setting show that top-ranked dimensions predict forgetting with $R^2 = 0.933$, outperforming random ($0.850$) and bottom-ranked ($0.827$) dimensions.
-A causal intervention test confirms that perturbing important dimensions causes $4\times$ more performance degradation than perturbing random dimensions.
-We report both positive and negative results: the hypothesis fails at 135M parameters (a scale artifact) but holds at 1.5B, and the margin over random controls, while in the correct direction, is modest.
+Sequential fine-tuning of large language models causes capability regressions on previously learned tasks.
+We propose \textbf{Sparse Feature Preservation} (SFP), a regularization method that penalizes activation drift in a small, empirically identified subspace of important feature dimensions.
+SFP is motivated by a falsifiable hypothesis (H1): forgetting is predictable from drift in a few ablation-ranked activation directions rather than from total representational change.
+We formalize the mathematical core of SFP in Lean~4 with zero \texttt{sorry} axioms.
+The central result establishes a conditional reduction: if H1 holds and the preservation loss is bounded by~$\delta$, then forgetting is bounded by~$C\sqrt{\delta}$.
+Experiments on Qwen2.5-1.5B in a Math$\to$Code setting show that top-ranked dimensions predict forgetting with $R^2 = 0.933$, outperforming random ($0.850$) and bottom-ranked ($0.827$) dimensions.
+A causal intervention test provides supporting evidence: perturbing important dimensions at inference causes $4\times$ more performance degradation than perturbing random dimensions.
+We report both positive and negative results: H1 does not hold at 135M parameters under our protocol but holds at 1.5B, and the margin over random controls is consistent but modest.
 \end{abstract}
 
 \input{sections/introduction}
@@ -58,9 +65,10 @@ We report both positive and negative results: the hypothesis fails at 135M param
 \input{sections/experiments}
 \input{sections/conclusion}
 
-%\nocite{*}
+{\small
 \bibliographystyle{plainnat}
 \bibliography{references}
+}
 
 \appendix
 \input{sections/appendix}

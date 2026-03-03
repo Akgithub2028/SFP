@@ -2,32 +2,32 @@
 \label{sec:introduction}
 
 Large language models are increasingly fine-tuned for specialized tasks---mathematics, code generation, safety alignment---yet each round of fine-tuning risks degrading performance on previously learned capabilities.
-This phenomenon, \emph{catastrophic forgetting}~\citep{mccloskey1989catastrophic,french1999catastrophic}, remains a central obstacle to continual learning in LLMs.
-Existing mitigations range from replay buffers~\citep{chaudhry2019tiny} and knowledge distillation~\citep{hinton2015distilling,li2017learning} to parameter regularization~\citep{kirkpatrick2017overcoming} and architectural constraints~\citep{qin2024exploring}, but these methods typically lack formal guarantees about \emph{what} they preserve and \emph{why} it works.
+This phenomenon, \emph{catastrophic forgetting}~\citep{mccloskey1989catastrophic, french1999catastrophic}, remains a central obstacle to continual learning in LLMs~\citep{delange2021continual}.
+Existing mitigations include replay buffers~\citep{chaudhry2019tiny}, knowledge distillation~\citep{li2017learning}, parameter regularization~\citep{kirkpatrick2017overcoming}, and architectural constraints~\citep{qin2024exploring}, but few provide a formally verified link between a measurable preserved quantity and a bound on forgetting.
 
-We propose \textbf{Sparse Feature Preservation} (SFP), a method grounded in a specific mechanistic hypothesis: forgetting is \emph{low-dimensional}.
-That is, the degradation in old-task performance during fine-tuning is largely explained by drift in a small number of activation feature dimensions, rather than by diffuse changes across the full activation space.
-If this hypothesis holds, then preserving only the important feature dimensions during training should be sufficient to prevent forgetting, while leaving the model free to learn in the complementary subspace.
+We propose \textbf{Sparse Feature Preservation} (SFP), a method grounded in a specific mechanistic hypothesis: that old-task performance degradation is largely explained by drift in a small number of activation feature dimensions, rather than by diffuse changes across the full activation space.
+If this hypothesis holds, then preserving only the important feature dimensions during training should suffice to prevent forgetting, while leaving the model free to learn in the complementary subspace.
 
 Our approach proceeds in three stages.
-First, we extract a PCA basis from mid-layer activations on a small memory set of old-task examples.
-Second, we rank feature dimensions by \emph{ablation importance}: how much old-task performance degrades when each dimension is zeroed out.
+First, we extract a PCA basis from mid-layer activations on a small memory set of old-task examples; we use PCA to obtain an orthonormal coordinate system that enables controlled comparisons across dimension subsets.
+Second, we rank feature dimensions by \emph{ablation importance}: the increase in old-task loss when each dimension is zeroed out.
 Third, we add a preservation loss that penalizes drift in the top-$r$ most important dimensions during fine-tuning.
-The key insight is that this selective preservation is both more targeted than full distillation (\ie it does not resist all representational change) and more principled than replay (\ie it identifies \emph{which} features matter).
+This selective preservation is more targeted than full hidden-state distillation~\citep{douillard2020podnet}, which resists all representational change, and differs from replay in that it identifies \emph{which} features to preserve rather than reusing old examples during training.
 
 A distinctive aspect of this work is that we formally verify the mathematical properties of SFP in Lean~4 using Mathlib~\citep{mathlib2020}.
-The central result, \texttt{sfp\_reduces\_forgetting}, establishes a reduction: \emph{if} forgetting is bounded by drift in the preserved subspace (our empirical hypothesis H1), \emph{and} the preservation loss is bounded by $\delta$, \emph{then} forgetting is bounded by $C\sqrt{\delta}$.
+The central result, \texttt{sfp\_reduces\_forgetting}, establishes a conditional reduction: \emph{assuming} our empirical hypothesis H1, bounding the preservation loss by~$\delta$ implies forgetting is bounded by~$C\sqrt{\delta}$.
 All auxiliary lemmas---projection properties, loss non-negativity, gradient orthogonality at stationarity, Pythagorean decomposition of drift---are machine-checked with zero \texttt{sorry} axioms.
-This makes the only unverified assumption explicit: the empirical hypothesis H1 itself.
+This makes the single unverified assumption explicit: the empirical hypothesis H1 itself.
 
 We test H1 on two model scales (SmolLM2-135M and Qwen2.5-1.5B) in a Math$\to$Code continual learning setting.
-At 1.5B parameters, drift in the top-$r$ PCA dimensions achieves $R^2 = 0.933$ for predicting forgetting, compared to $R^2 = 0.850$ for random dimensions and $R^2 = 0.827$ for bottom-ranked dimensions---the correct ranking predicted by H1, though with modest margins.
-A causal intervention test provides complementary evidence: perturbing top-$r$ dimensions at inference causes substantially more performance degradation ($\Delta$ppl $= +0.85$) than perturbing random ($+0.21$) or bottom ($+0.02$) dimensions, even at the 135M scale where correlational H1 tests fail.
+At 1.5B parameters, drift in the top-$r$ PCA dimensions achieves $R^2 = 0.933$ for predicting forgetting, compared to $0.850$ for random and $0.827$ for bottom-ranked dimensions---the correct ranking predicted by H1, though with modest margins.
+A causal intervention test provides complementary evidence: perturbing top-$r$ dimensions at inference causes substantially more performance degradation ($\Delta\text{ppl} = +0.85$) than perturbing random ($+0.21$) or bottom ($+0.02$) dimensions, even at 135M where the correlational H1 test does not hold.
+We report this scale dependence transparently.
 
 \paragraph{Contributions.}
 \begin{enumerate}
     \item A \textbf{falsifiable measurement protocol} for the low-dimensional forgetting hypothesis, with pre-registered ablation controls (random basis, random selection, bottom-$r$).
-    \item \textbf{Sparse Feature Preservation}, a continual learning method that selectively preserves ablation-important activation features, with a gradient-informed variant.
-    \item \textbf{Formal verification} of SFP's mathematical properties in Lean~4, making all assumptions explicit and machine-checking the reduction from H1 to a forgetting bound.
-    \item Experimental evaluation in an \textbf{LLM continual learning} setting (135M--1.5B parameters), with honest reporting of partial results and scale-dependent effects.
+    \item \textbf{Sparse Feature Preservation}, a continual learning method that selectively preserves ablation-important activation features ($\sim$40 lines of code), with a gradient-informed variant.
+    \item \textbf{Formal verification} of SFP's mathematical reduction in Lean~4: all theorems machine-checked with zero \texttt{sorry}, making assumptions explicit.
+    \item \textbf{Empirical evaluation} at two model scales (135M--1.5B) with honest reporting of both positive and negative results, including scale-dependent effects.
 \end{enumerate}

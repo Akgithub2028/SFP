@@ -1,46 +1,39 @@
 \section{Experiments}
 \label{sec:experiments}
 
-We evaluate two claims: (1)~H1---that forgetting is predicted by drift in importance-ranked activation dimensions (\cref{sec:h1_validation}), and (2)~that SFP's causal mechanism is sound---perturbing important dimensions causes disproportionate performance degradation (\cref{sec:causal}).
-We also report an $r$-sweep diagnostic that characterizes the effective dimensionality of forgetting (\cref{sec:rsweep}).
+We evaluate two claims: (1)~H1---that forgetting is predicted by drift in importance-ranked activation dimensions (\cref{sec:h1_validation}), and (2)~that top-ranked dimensions are causally important for old-task performance (\cref{sec:causal}).
+We also report a dimensionality sweep (\cref{sec:rsweep}).
 
-\subsection{Experimental Setup}
+\subsection{Setup}
 \label{sec:setup}
 
 \paragraph{Models.}
-We evaluate on two scales: SmolLM2-135M-Instruct (135M parameters, CPU) and Qwen2.5-1.5B-Instruct (1.5B parameters, single GPU).
-Both models are fine-tuned with LoRA~\citep{hu2022lora} (rank 32, $\alpha = 64$, applied to all linear layers).
+We evaluate at two scales: SmolLM2-135M-Instruct (135M parameters, CPU) and Qwen2.5-1.5B-Instruct (1.5B parameters, A10G GPU).
+Both are fine-tuned with LoRA~\citep{hu2022lora} (rank 32, $\alpha = 64$, targets: \texttt{q\_proj}, \texttt{v\_proj}).
 
 \paragraph{Tasks.}
-Our primary continual learning setting is Math$\to$Code: the model is first evaluated on GSM8K~\citep{cobbe2021training} (math reasoning), then fine-tuned on MBPP~\citep{austin2021program} (code generation).
-Forgetting is measured as the accuracy drop on GSM8K after fine-tuning on MBPP.
-The full benchmark (\cref{sec:full_benchmark}) extends to five task pairs covering instruction following (Alpaca$\to$IFEval), safety (HH-RLHF), and domain adaptation (PubMed).
+Our primary setting is Math$\to$Code: the model is first evaluated on GSM8K~\citep{cobbe2021training}, then fine-tuned on MBPP~\citep{austin2021program} for 500 steps with checkpoints every 25 steps (20 evaluation points).
+Forgetting is measured as the increase in math perplexity after code fine-tuning.
 
 \paragraph{SFP configuration.}
-We extract activations at three probe layers ($L/4$, $L/2$, $3L/4$), compute PCA with $k = 128$ components, and preserve the top $r = 32$ dimensions ranked by ablation importance.
-The memory set consists of 128 examples from the old task.
-Training runs for 500 steps with checkpoints every 25 steps, yielding 20 evaluation points for regression analysis.
+Probe layers at $L/4$, $L/2$, $3L/4$.
+PCA with $k = 128$ components, top $r = 32$ dimensions by ablation importance, memory set of 128 examples, seed 42.
 
-\paragraph{Metrics.}
-For H1 validation, we compute $R^2$ of the linear regression of forgetting (accuracy drop) on projected drift $\| P_W(\Delta a) \|$ across checkpoints.
-We compare four predictors: top-$r$ (ablation-ranked), total (all dimensions), random (uniformly sampled $r$ dimensions), and bottom-$r$ (least important by ablation).
-For the causal test, we measure the perplexity increase ($\Delta$ppl) when injecting noise into each set of dimensions at inference time.
-
-\paragraph{Baselines.}
-We compare against: (1)~\textbf{Naive} fine-tuning with no forgetting mitigation; (2)~\textbf{Replay} with interleaved old-task examples (same 128-example budget as SFP's memory set); (3)~\textbf{LwF}~\citep{li2017learning}: logit distillation from the pre-trained model; (4)~\textbf{Hidden distillation}: full hidden-state distillation in the style of PODNet~\citep{douillard2020podnet}; (5)~\textbf{Orthogonal LoRA}~\citep{qin2024exploring}: constraining adapter updates to be orthogonal to previous task directions.
-For SFP, we additionally report two ablation controls: \textbf{SFP-random} (preserving $r$ random PCA dimensions instead of ablation-ranked ones) and \textbf{SFP-random-basis} (preserving $r$ random directions not from PCA).
+\paragraph{Predictors.}
+We compare four subspaces as forgetting predictors: \textbf{top-$r$} (ablation-ranked), \textbf{total} (all 128 dims), \textbf{random} (uniformly sampled $r$ dims), and \textbf{bottom-$r$} (least important).
+$R^2$ is computed via linear regression of forgetting on projected drift across checkpoints.
 
 \subsection{H1 Validation: Correlational Evidence}
 \label{sec:h1_validation}
 
-\paragraph{1.5B results (Qwen2.5-1.5B-Instruct).}
-\Cref{tab:h1_results} reports the $R^2$ values for predicting forgetting from activation drift under different predictor subspaces.
-The top-$r$ ablation-ranked dimensions achieve $R^2 = 0.933$, outperforming total drift ($0.888$), random dimensions ($0.850$), and bottom-ranked dimensions ($0.827$).
-The ranking is exactly as predicted by H1: top $>$ total $>$ random $>$ bottom.
+\paragraph{1.5B results.}
+\Cref{tab:h1_results} reports $R^2$ values at the 1.5B scale.
+Top-$r$ achieves $R^2 = 0.933$, outperforming total ($0.888$), random ($0.850$), and bottom ($0.827$).
+The ranking matches H1's prediction exactly: top $>$ total $>$ random $>$ bottom.
 
 \begin{table}[t]
 \centering
-\caption{$R^2$ of linear regression predicting forgetting from activation drift at 1.5B scale (Qwen2.5-1.5B-Instruct, Math$\to$Code, 500 steps, 20 checkpoints). Higher is better. H1 predicts: top $>$ total $>$ random $>$ bottom.}
+\caption{$R^2$ of linear regression predicting forgetting from activation drift (Qwen2.5-1.5B, Math$\to$Code, 500 steps, 20 checkpoints). H1 predicts: top $>$ total $>$ random $>$ bottom.}
 \label{tab:h1_results}
 \begin{tabular}{lcc}
 \toprule
@@ -54,39 +47,39 @@ Bottom-$r$ (ablation) & 32 & 0.827 \\
 \end{tabular}
 \end{table}
 
-Against our pre-registered gate criteria, 2 of 3 checks pass: (i)~$R^2(\text{top-}r) = 0.933 > 0.6$~\checkmark; (ii)~$R^2(\text{top-}r) > R^2(\text{total})$~\checkmark; (iii)~$R^2(\text{top-}r) \gg R^2(\text{random})$---the margin is $0.083$, which we judge as modest rather than decisive~($\times$).
-We score this as a \textbf{partial pass}: the correct ranking emerges, but the margin over random is not overwhelming.
+Against our pre-registered gate: (i)~$R^2(\text{top-}r) = 0.933 > 0.6$~\checkmark; (ii)~$R^2(\text{top-}r) > R^2(\text{total})$~\checkmark; (iii)~$R^2(\text{top-}r) \gg R^2(\text{random})$---the gap is $0.083$, which is in the correct direction but modest~($\times$).
+We score this as a \textbf{partial pass} (2/3).
 
-\paragraph{135M results (SmolLM2-135M-Instruct).}
-At the 135M scale, H1 \textbf{fails}: the $R^2$ ranking is inverted, with bottom-ranked dimensions ($R^2 = 0.89$) outperforming top-ranked ($R^2 = 0.71$).
-We attribute this to a scale artifact: at 135M parameters, the model's activation space may be too compressed for meaningful separation between important and unimportant feature dimensions.
-This negative result motivates our focus on 1.5B+ models and highlights that H1 is a scale-dependent hypothesis.
+\paragraph{135M results.}
+At 135M, H1 does not hold: the ranking is inverted, with bottom-ranked dimensions ($R^2 = 0.994$) outperforming top-ranked ($0.913$).
+We do not have a confirmed explanation for this inversion.
+Possible contributing factors include the small activation dimension ($d = 576$), minimal PCA ($k = 16$, $r = 8$), and only 5 data points from 40 training steps.
+This negative result highlights that H1 is scale-dependent under our protocol.
 
-\paragraph{Baseline comparison.}
-The baseline math accuracy before fine-tuning is $44.44\%$ on GSM8K for Qwen2.5-1.5B-Instruct.
-\todo{Full baseline comparison table (SFP vs.\ Naive, Replay, LwF, Hidden, OrthoLoRA) pending GPU benchmark runs.}
+\paragraph{Baseline math performance.}
+The pre-fine-tuning math accuracy for Qwen2.5-1.5B is 44.44\% on GSM8K (9 test questions), with baseline perplexity 0.505.
+SmolLM2-135M achieves 0\% accuracy (baseline perplexity 1.177).
 
 \subsection{H1 Validation: Causal Evidence}
 \label{sec:causal}
 
-The correlational analysis in \cref{sec:h1_validation} establishes that top-$r$ drift \emph{predicts} forgetting, but correlation does not imply causation.
-To test the causal direction, we inject calibrated noise into specific activation dimensions at inference time and measure the effect on old-task perplexity.
-If the top-$r$ dimensions are causally important for old-task performance, perturbing them should cause more degradation than perturbing random or bottom-ranked dimensions.
+Correlation does not establish causation.
+To test whether top-$r$ dimensions are \emph{causally} important for old-task performance, we inject calibrated Gaussian noise into specific activation subspaces at inference time and measure the resulting perplexity increase.
 
 \paragraph{Protocol.}
-For each set of dimensions (top-$r$, random, bottom-$r$), we add Gaussian noise $\epsilon \sim \mathcal{N}(0, \sigma^2 I)$ to the selected PCA components of the activation at each probe layer during a forward pass on old-task evaluation data.
-The noise scale $\sigma$ is calibrated to the standard deviation of the projected activations, so the perturbation is comparable in magnitude across dimension sets.
+For each dimension set (top-$r$, random, bottom-$r$), we add noise $\epsilon \sim \mathcal{N}(0, \sigma^2 I_r)$ to the corresponding PCA components at each probe layer during evaluation.
+$\sigma$ is calibrated to the mean standard deviation of the projected activations, so perturbation magnitudes are comparable across dimension sets.
 
-\paragraph{Results (135M, CPU smoke test).}
-Even at the 135M scale where correlational H1 fails, the causal test passes clearly (\cref{tab:causal}):
+\paragraph{Results.}
+\Cref{tab:causal} reports results at 135M (CPU smoke test with $r = 2$, $k = 4$):
 
 \begin{table}[t]
 \centering
-\caption{Causal intervention test: perplexity increase ($\Delta$ppl) when injecting noise into different activation dimension sets (SmolLM2-135M, Math task). Higher $\Delta$ppl indicates greater causal importance.}
+\caption{Causal intervention: perplexity increase when injecting noise into different dimension sets (SmolLM2-135M, Math task, $1\sigma$ noise scale). Higher $\Delta$ppl = greater causal importance.}
 \label{tab:causal}
 \begin{tabular}{lc}
 \toprule
-Dimension Set & $\Delta$ppl \\
+Dimension set & $\Delta$ppl \\
 \midrule
 Top-$r$ (ablation) & $+0.85$ \\
 Random & $+0.21$ \\
@@ -95,40 +88,42 @@ Bottom-$r$ (ablation) & $+0.02$ \\
 \end{tabular}
 \end{table}
 
-Perturbing the top-$r$ dimensions causes $4\times$ more degradation than random dimensions and $42\times$ more than bottom-ranked dimensions.
-This result is striking because it holds at 135M parameters, where the correlational H1 test fails.
-The discrepancy suggests that ablation importance correctly identifies causally important dimensions even at small scale, but the \emph{correlation} between drift in those dimensions and forgetting is confounded at 135M---possibly because the model's limited capacity means drift in ``unimportant'' dimensions also contributes to forgetting.
+Perturbing top-$r$ dimensions causes $4\times$ more degradation than random and $42\times$ more than bottom-ranked dimensions.
+This result is notable because it holds at 135M, where the correlational H1 test does not hold.
+The discrepancy suggests that ablation importance correctly identifies causally important dimensions even at small scale, but the \emph{correlation} between drift in those dimensions and forgetting is confounded---possibly because drift in all dimensions contributes to forgetting when the model's capacity is limited.
 
 \paragraph{1.5B causal test.}
-\todo{Results from the 1.5B GPU causal intervention run are pending. We expect the causal signal to be at least as strong as at 135M, given the stronger correlational evidence at that scale.}
+\todo{GPU results from Qwen2.5-1.5B causal intervention are pending (launched on Modal). We expect the causal signal to be at least as strong, given the stronger correlational evidence at 1.5B.}
 
 \subsection{Dimensionality Sweep}
 \label{sec:rsweep}
 
-To characterize the effective dimensionality of forgetting, we sweep $r \in \{1, 4, 32, 128\}$ and measure both the variance explained by the top-$r$ PCA dimensions and the $R^2$ of forgetting prediction (\cref{tab:rsweep}).
+To characterize the effective dimensionality of forgetting, we sweep $r \in \{1, 2, 4, 8, 16, 32, 64, 128\}$ at 1.5B (\cref{tab:rsweep}).
 
 \begin{table}[t]
 \centering
-\caption{$r$-sweep at 1.5B scale: variance explained by top-$r$ PCA dimensions and forgetting prediction $R^2$. Even $r = 1$ captures 96.2\% of variance and achieves $R^2 = 0.854$.}
+\caption{$r$-sweep (1.5B): variance explained and forgetting $R^2$ by top-$r$ PCA dimensions. Even $r = 1$ captures 96.2\% of variance and $R^2 = 0.854$ of forgetting.}
 \label{tab:rsweep}
 \begin{tabular}{rcc}
 \toprule
-$r$ & Variance Explained (\%) & Forgetting $R^2$ \\
+$r$ & Var.\ Explained (\%) & Forgetting $R^2$ \\
 \midrule
 1   & 96.2 & 0.854 \\
+2   & 96.4 & 0.854 \\
 4   & 96.9 & 0.871 \\
+8   & 97.4 & 0.878 \\
+16  & 98.0 & 0.879 \\
 32  & 98.7 & 0.882 \\
+64  & 99.4 & 0.883 \\
 128 & 100.0 & 0.884 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-Two observations stand out.
-First, a single PCA dimension captures 96.2\% of the activation variance, consistent with the highly concentrated spectrum typical of transformer activations.
-Second, forgetting $R^2$ increases only modestly from $r = 1$ ($0.854$) to $r = 128$ ($0.884$), suggesting that the forgetting-relevant signal is concentrated in very few dimensions.
-However, we note that the ablation-ranked $R^2$ in \cref{tab:h1_results} ($0.933$ for $r = 32$) is higher than the PCA-ranked $R^2$ here ($0.882$), confirming that ablation importance provides a better ranking than variance explained.
+Two observations: (1)~a single PCA dimension captures 96.2\% of activation variance, consistent with the concentrated spectrum of transformer activations; (2)~forgetting $R^2$ increases only modestly from $r = 1$ to $r = 128$, suggesting the forgetting-relevant signal is concentrated in very few dimensions.
+The ablation-ranked $R^2$ in \cref{tab:h1_results} ($0.933$ for $r = 32$) exceeds the PCA-ranked value here ($0.882$), confirming that ablation importance provides a better ranking than variance explained alone.
 
 \subsection{Full Benchmark}
 \label{sec:full_benchmark}
 
-\todo{Full five-task benchmark results (Math, Code, Instruction Following, Safety, Domain) with all baselines are pending GPU runs. The benchmark measures Average Accuracy (AA), Backward Transfer (BWT), Forward Transfer (FWT), and per-task forgetting across both model scales.}
+\todo{Five-task benchmark (Math, Code, Instruction Following, Safety, Domain) with all baselines (Naive, Replay, LwF, Hidden Distillation, Orthogonal LoRA, SFP, SFP-random-basis, SFP-random-selection) pending GPU runs. Will report Average Accuracy, Backward Transfer, Forward Transfer, and per-task forgetting at both scales.}
