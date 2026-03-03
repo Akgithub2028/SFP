@@ -29,7 +29,7 @@ where *U_r* contains the top-*r* important PCA directions at layer ℓ, and θ* 
 
 ## Formal verification
 
-The mathematical reduction is verified in [Lean 4](lean-sfp/) (Mathlib v4.17.0, 1 `sorry` remaining):
+The mathematical reduction is verified in [Lean 4](lean-sfp/) (Mathlib v4.17.0, 0 `sorry` remaining):
 
 ```
 IF   forgetting ≤ C · ‖P_W(Δa)‖        (H1 — empirical, tested by experiments)

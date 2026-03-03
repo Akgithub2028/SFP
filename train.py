@@ -58,6 +58,7 @@ config = {
     "pushgateway": "",
     "eval_every": 0,
     "method_file": "",
+    "full_finetune": 0,
 }
 
 # ---------------------------------------------------------------------------
@@ -190,9 +191,15 @@ if __name__ == "__main__":
         name=cfg["model"],
         lora_rank=cfg["lora_rank"],
         lora_alpha=cfg["lora_alpha"],
+        full_finetune=bool(cfg["full_finetune"]),
     )
     model.train()
-    model.print_trainable_parameters()
+    if hasattr(model, "print_trainable_parameters"):
+        model.print_trainable_parameters()
+    else:
+        n_total = sum(p.numel() for p in model.parameters())
+        n_train = sum(p.numel() for p in model.parameters() if p.requires_grad)
+        print(f"Full fine-tuning: {n_train:,}/{n_total:,} parameters trainable")
 
     # Optimizer — only trainable LoRA params
     trainable_params = [p for p in model.parameters() if p.requires_grad]

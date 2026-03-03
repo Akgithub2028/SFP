@@ -169,8 +169,8 @@ python analyze.py --compare out/sfp out/sfp_grad_importance
 - `preservationLoss_le_total_drift`, `drift_pythagorean_decomposition` ✅
 - `multiLayerPreservationLoss_nonneg` ✅
 
-### Needs proof (sorry, standard facts)
-- `orthonormal_projection_formula` — Px = Σᵢ ⟨x,uᵢ⟩uᵢ (bridge between Orthonormal and OrthonormalBasis APIs)
+### Fully proved
+All theorems are now verified with 0 `sorry` remaining.
 
 ### Needs experiments
 - H1: R² of top-r drift vs. forgetting (target: ≥ 0.6)

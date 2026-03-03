@@ -102,7 +102,8 @@ theorem orthonormal_projection_formula
     (orthogonalProjection (Submodule.span ℝ (Set.range u))
       x : E) =
     ∑ i : Fin r, ⟪x, u i⟫_ℝ • u i := by
-  sorry
+  classical
+  simpa using hu.orthogonalProjection_eq_sum (x := x)
 
 end OrthonormalBasis
 

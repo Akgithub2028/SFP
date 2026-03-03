@@ -96,6 +96,35 @@ def compute_average_accuracy(results_history: list[dict], task_names: list[str])
     return sum(scores) / len(scores) if scores else 0.0
 
 
+def compute_confidence_interval(
+    scores: list[float],
+    n_bootstrap: int = 1000,
+    ci: float = 0.95,
+    seed: int = 42,
+) -> tuple[float, float, float]:
+    """Bootstrap confidence interval for a list of per-example scores.
+
+    Returns: (mean, ci_lower, ci_upper).
+    """
+    import random as _rng
+
+    if not scores:
+        return 0.0, 0.0, 0.0
+
+    rng = _rng.Random(seed)
+    n = len(scores)
+    means = []
+    for _ in range(n_bootstrap):
+        sample = [scores[rng.randint(0, n - 1)] for _ in range(n)]
+        means.append(sum(sample) / n)
+
+    means.sort()
+    alpha = (1 - ci) / 2
+    lo = means[int(alpha * n_bootstrap)]
+    hi = means[int((1 - alpha) * n_bootstrap)]
+    return sum(scores) / n, lo, hi
+
+
 def compute_forward_transfer(results_history: list[dict], task_names: list[str]) -> float:
     """Forward Transfer (FWT): average first-seen accuracy (proxy — actual FWT needs zero-shot baselines)."""
     if len(results_history) < 2 or len(task_names) < 2:

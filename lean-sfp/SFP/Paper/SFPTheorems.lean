@@ -13,7 +13,7 @@
   - ✅ `orthogonalProjection_selfAdjoint`: ⟨Px,y⟩ = ⟨x,Py⟩
   - ✅ `orthogonalProjection_norm_le`: ‖Px‖ ≤ ‖x‖
   - ✅ `orthogonalProjection_complement`: (I-P)x = P_{W⊥}x
-  - 🔶 `orthonormal_projection_formula`: Px = Σᵢ ⟨x,uᵢ⟩uᵢ
+  - ✅ `orthonormal_projection_formula`: Px = Σᵢ ⟨x,uᵢ⟩uᵢ
 
   ## Preservation Loss (§3.2)
   - ✅ `preservationLoss_nonneg`: L_pres ≥ 0

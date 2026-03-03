@@ -19,21 +19,23 @@ def load_model(
     lora_alpha: int = 128,
     target_modules: list[str] | None = None,
     device: str = "auto",
+    full_finetune: bool = False,
 ) -> tuple[PreTrainedModel, PreTrainedTokenizer]:
-    """Load a HuggingFace model + tokenizer and apply LoRA.
+    """Load a HuggingFace model + tokenizer, optionally applying LoRA.
 
     Steps:
       1. Load the base causal-LM and its tokenizer from the HF hub (or local path).
       2. Ensure the tokenizer has a pad token (defaults to eos_token if missing).
-      3. Wrap the model with a LoRA adapter via peft.
+      3. If full_finetune is False (default), wrap with a LoRA adapter via peft.
       4. Place the model on the requested device.
 
     Args:
         name: HF model name or path.
-        lora_rank: LoRA rank (r).
-        lora_alpha: LoRA alpha scaling.
+        lora_rank: LoRA rank (r). Ignored when full_finetune=True.
+        lora_alpha: LoRA alpha scaling. Ignored when full_finetune=True.
         target_modules: Which modules to apply LoRA to. Defaults to ["q_proj", "v_proj"].
         device: Device string ("auto", "cpu", "cuda", "mps").
+        full_finetune: If True, train all parameters (no LoRA adapter).
 
     Returns:
         (model, tokenizer) tuple.
@@ -69,6 +71,13 @@ def load_model(
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
         base_model.config.pad_token_id = tokenizer.pad_token_id
+
+    if full_finetune:
+        # Full fine-tuning: all parameters trainable, no LoRA adapter.
+        model = base_model
+        if device != "auto":
+            model = model.to(device)
+        return model, tokenizer
 
     # --- Apply LoRA adapter ---
     lora_config = LoraConfig(

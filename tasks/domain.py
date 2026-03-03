@@ -81,8 +81,23 @@ def evaluate(model, tokenizer, mode: str = "fast") -> dict[str, float]:
 
     ppl = math.exp(total_loss / total_tokens) if total_tokens > 0 else float("inf")
 
-    # ── Domain QA ────────────────────────────────────────────────────────
-    qa_items = _SCIENCE_QA[:3] if mode == "smoke" else _SCIENCE_QA
+    # ── Domain QA (SciQ dataset, fallback to hardcoded) ─────────────────
+    n_qa = 5 if mode == "smoke" else 200 if mode == "fast" else None
+    qa_items: list[tuple[str, str]] = []
+    try:
+        from datasets import load_dataset
+
+        sciq = load_dataset("allenai/sciq", split="test")
+        for ex in sciq:
+            q = ex.get("question", "")
+            a = ex.get("correct_answer", "")
+            if q and a:
+                qa_items.append((q, a))
+        if n_qa is not None:
+            qa_items = qa_items[:n_qa]
+    except Exception:
+        qa_items = _SCIENCE_QA[:3] if mode == "smoke" else _SCIENCE_QA
+
     correct = 0
     for question, answer in tqdm(qa_items, desc="domain-qa"):
         prompt = f"Answer in one or two words.\n\nQuestion: {question}\nAnswer:"
