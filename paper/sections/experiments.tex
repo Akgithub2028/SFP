@@ -71,29 +71,33 @@ For each dimension set (top-$r$, random, bottom-$r$), we add noise $\epsilon \si
 $\sigma$ is calibrated to the mean standard deviation of the projected activations, so perturbation magnitudes are comparable across dimension sets.
 
 \paragraph{Results.}
-\Cref{tab:causal} reports results at 135M (CPU smoke test with $r = 2$, $k = 4$):
+\Cref{tab:causal} reports results at both scales across four noise magnitudes.
 
 \begin{table}[t]
 \centering
-\caption{Causal intervention: perplexity increase when injecting noise into different dimension sets (SmolLM2-135M, Math task, $1\sigma$ noise scale). Higher $\Delta$ppl = greater causal importance.}
+\caption{Causal intervention: perplexity increase ($\Delta$ppl) when injecting noise into different dimension sets at inference time (Qwen2.5-1.5B, Math task, $r = 32$, $k = 128$). Baseline ppl = 0.505. Higher $\Delta$ppl = greater causal importance. Top-$r$ consistently causes the most degradation across all noise scales.}
 \label{tab:causal}
-\begin{tabular}{lc}
+\begin{tabular}{lccc}
 \toprule
-Dimension set & $\Delta$ppl \\
+Noise scale & Top-$r$ $\Delta$ppl & Random $\Delta$ppl & Bottom-$r$ $\Delta$ppl \\
 \midrule
-Top-$r$ (ablation) & $+0.85$ \\
-Random & $+0.21$ \\
-Bottom-$r$ (ablation) & $+0.02$ \\
+$0.5\sigma$ & $+0.042$ & $+0.024$ & $+0.001$ \\
+$1.0\sigma$ & $+0.248$ & $+0.100$ & $+0.009$ \\
+$2.0\sigma$ & $+2.604$ & $+0.810$ & $+0.041$ \\
+$5.0\sigma$ & $+8.709$ & $+5.041$ & $+0.328$ \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-Perturbing top-$r$ dimensions causes $4\times$ more degradation than random and $42\times$ more than bottom-ranked dimensions.
-This result is notable because it holds at 135M, where the correlational H1 test does not hold.
-The discrepancy suggests that ablation importance correctly identifies causally important dimensions even at small scale, but the \emph{correlation} between drift in those dimensions and forgetting is confounded---possibly because drift in all dimensions contributes to forgetting when the model's capacity is limited.
+At $1\sigma$, perturbing top-$r$ dimensions causes $2.5\times$ more degradation than random and $28\times$ more than bottom-ranked dimensions.
+At $2\sigma$ the ratio reaches $3.2\times$ over random and $64\times$ over bottom.
+The effect is monotonically increasing with noise scale and the ranking top $>$ random $>$ bottom holds at every scale tested.
 
-\paragraph{1.5B causal test.}
-\todo{GPU results from Qwen2.5-1.5B causal intervention are pending (launched on Modal). We expect the causal signal to be at least as strong, given the stronger correlational evidence at 1.5B.}
+\paragraph{Cross-scale comparison.}
+The causal signal is present at both 135M and 1.5B.
+At 135M ($r = 2$, $k = 4$, $1\sigma$), top-$r$ perturbation causes $\Delta\text{ppl} = +0.85$ versus $+0.21$ (random) and $+0.02$ (bottom)---a $4\times$ and $42\times$ advantage respectively.
+This is notable because the \emph{correlational} H1 test fails at 135M (the ranking is inverted), yet the causal test still correctly identifies the ablation-ranked dimensions as most important.
+The discrepancy suggests that ablation importance identifies causally important dimensions even at small scale, but the correlation between drift in those dimensions and forgetting is confounded when model capacity is limited.
 
 \subsection{Dimensionality Sweep}
 \label{sec:rsweep}

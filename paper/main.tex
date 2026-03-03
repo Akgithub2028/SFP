@@ -56,7 +56,7 @@ SFP is motivated by a falsifiable hypothesis (H1): forgetting is predictable fro
 We formalize the mathematical core of SFP in Lean~4 with zero \texttt{sorry} axioms.
 The central result establishes a conditional reduction: if H1 holds and the preservation loss is bounded by~$\delta$, then forgetting is bounded by~$C\sqrt{\delta}$.
 Experiments on Qwen2.5-1.5B in a Math$\to$Code setting show that top-ranked dimensions predict forgetting with $R^2 = 0.933$, outperforming random ($0.850$) and bottom-ranked ($0.827$) dimensions.
-A causal intervention test provides supporting evidence: perturbing important dimensions at inference causes $4\times$ more performance degradation than perturbing random dimensions.
+A causal intervention test confirms this at 1.5B: perturbing important dimensions at inference causes $2.5\times$ more degradation than random and $28\times$ more than bottom-ranked dimensions.
 We report both positive and negative results: H1 does not hold at 135M parameters under our protocol but holds at 1.5B, and the margin over random controls is consistent but modest.
 \end{abstract}
 

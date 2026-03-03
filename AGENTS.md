@@ -222,14 +222,14 @@ All theorems are now verified with 0 `sorry` remaining.
 - **135M (CPU, correlational)**: FAIL — R² ranking inverted (bottom > random > total > top). Scale artifact.
 - **1.5B (GPU, correlational)**: PARTIAL PASS — R²(top-r)=0.933 > total=0.888 > random=0.850 > bottom=0.827. Correct ranking, but margin over random is modest.
 - **135M (CPU, causal)**: PASS — top Δppl=+0.85 >> random +0.21 >> bottom +0.02. Ablation importance identifies causally important dims even at small scale.
-- **1.5B (GPU, causal)**: Running on Modal. Results pending.
-- **Decision**: Keep PCA, strengthen with gradient-informed basis + causal intervention test.
+- **1.5B (GPU, causal)**: PASS — top Δppl=+0.248 >> random +0.100 >> bottom +0.009 at 1σ. Gate passes at all 4 noise scales (0.5σ, 1σ, 2σ, 5σ). Top/bottom ratio reaches 64× at 2σ.
+- **Decision**: H1 has both correlational (R²=0.933) and causal (28× top/bottom at 1σ) support at 1.5B. Keep PCA, strengthen with gradient-informed basis.
 
 ### Paper status
-All sections written (intro, related, method, experiments, conclusion, appendix). Key results tables populated. Pending: full baseline comparison, 1.5B causal test results, gradient basis comparison.
+All sections written (intro, related, method, experiments, conclusion, appendix). Key results tables populated with 1.5B correlational and causal results. Pending: full baseline comparison, gradient basis comparison.
 
 ### Needs experiments
-- H1 causal test (1.5B): GPU run launched, awaiting results
+- ~~H1 causal test (1.5B)~~: ✅ DONE — PASS at all noise scales
 - H1 gradient basis: compare gradient-informed basis R² vs PCA R²
 - Full baseline comparison: SFP vs naive, replay, LwF, hidden distill, ortho LoRA
 - H2: Pareto frontier comparison at M=128
