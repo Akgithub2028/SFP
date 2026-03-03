@@ -2,13 +2,11 @@
 
 **Does your LLM forget? Find out in 5 minutes.**
 
-sfp is the simplest experimental harness for studying catastrophic forgetting in LLMs. Fine-tune a model on sequential tasks, watch it forget, and try methods to prevent it. The code is minimal, hackable, and covers continual training, evaluation, drift analysis, and a forgetting leaderboard. For example, you can watch a small LLM lose its math abilities after learning to code in under 5 minutes on a CPU:
-
 ```
 python forget.py
 ```
 
-More generally, sfp lets you run any continual learning method through a standardized benchmark with one command. The main dial is `--memory`: how many examples from previous tasks you're allowed to remember (0 = no memory = maximum forgetting, 2048 = lots of replay). All methods, baselines, and our proposed method (Sparse Feature Preservation) compete on the same footing.
+sfp is a minimal harness for studying catastrophic forgetting in LLMs. Fine-tune a model on sequential tasks, watch it forget, and try methods to prevent it. All methods compete on a standardized benchmark with a [live leaderboard](https://sfp-leaderboard.pages.dev).
 
 ## Quick start
 
@@ -18,120 +16,97 @@ uv sync
 python forget.py
 ```
 
-**I have a GPU.** Great, run the full benchmark:
+**With a GPU:**
 ```bash
 python train.py --method sfp --memory 128
 ```
 
-**I only have a CPU.** No worries, `forget.py` runs fine on CPU in ~5 minutes. You'll see forgetting happen before your eyes.
+## The idea
 
-## Forgetting Leaderboard (M=128)
+When you fine-tune an LLM on Task A (math) then Task B (code), it forgets math. This is **catastrophic forgetting** — one of the biggest unsolved problems in deploying LLMs that learn over time.
 
-Who can prevent the most forgetting? Submit your method and find out.
+We investigate a specific hypothesis about why:
 
-**[Live leaderboard →](https://sfp-leaderboard.pages.dev)**
+> **H1:** Forgetting is low-dimensional. Activation drift in a small feature subspace (~32 dimensions per layer) predicts forgetting on old tasks.
 
-| # | Score ↑ | Retention ↑ | Plasticity ↑ | Method | Description | Date | Contributor |
-|---|---------|-------------|--------------|--------|-------------|------|-------------|
-| — | — | — | — | *your method here* | — | — | — |
+If true, you don't need to preserve the entire model — just the right features. That's **Sparse Feature Preservation (SFP)**: find the important activation directions via PCA + ablation, then add a loss term that anchors only those during new task training. ~40 lines of code.
 
-See [dev/LEADERBOARD.md](dev/LEADERBOARD.md) for how to submit.
+### The reduction
 
-## What is this?
+We formalize this as a reduction in [Lean 4](lean-sfp/):
 
-When you fine-tune an LLM on Task A (say, math) and then fine-tune it on Task B (say, code), it *forgets* how to do math. This is called **catastrophic forgetting**, and it's one of the biggest unsolved problems in deploying LLMs that need to learn new things over time.
-
-sfp provides: (1) a standardized benchmark to measure forgetting across sequential tasks, (2) implementations of common mitigation methods (replay, distillation, orthogonal adapters), and (3) our proposed method — **Sparse Feature Preservation (SFP)** — which identifies a small set of important internal features and preserves only those during new task training.
-
-The key insight behind SFP: forgetting isn't uniformly distributed across the model's representations. It's concentrated in a **low-dimensional feature subspace**. Preserve those ~32 dimensions per layer, and you keep old abilities without sacrificing new ones.
-
-## Getting started
-
-### Watch forgetting happen (5 min, CPU)
-
-```bash
-python forget.py
+```
+IF   forgetting ≤ C · ‖P_W(Δa)‖        (H1 — empirical, validated by experiments)
+AND  L_pres ≤ δ                          (SFP — minimize the preservation loss)
+THEN forgetting ≤ C · √δ                (proved in Lean, no sorry)
 ```
 
-This loads a tiny LLM, tests it on math, fine-tunes it on code, and tests math again. You'll see the model lose its math abilities in real time.
+**The only unverified assumption is H1.** Everything else — the loss bounds subspace drift, gradients stay orthogonal to preserved features, the Pythagorean decomposition into stability vs. plasticity — is [formally verified](lean-sfp/SFP/Paper/Reduction.lean). The experiments exist to validate H1.
 
-### Run a method (1 GPU)
+### The research loop
 
-```bash
-python train.py --method sfp --memory 128 --model Qwen/Qwen2.5-1.5B-Instruct
+The project runs a 4-stage loop:
+
+```
+  HYPOTHESIZE ──▶ EXPERIMENT ──▶ FORMALIZE ──▶ WRITE UP
+  (text)          (python)       (lean 4)      (latex)
+  dev/RESEARCH.md train.py       lean-sfp/     paper/
 ```
 
-### Full experiment suite (8×H100)
+1. State a hypothesis with falsification criteria
+2. Test it in Python — if it fails, stop
+3. If it survives, formalize the math in Lean 4
+4. Write it up in LaTeX, referencing theorem names directly
 
-```bash
-bash runs/full.sh
-```
-
-## Research
-
-If you're a researcher and want to iterate fast, train on the demo config (~5 min):
-
-```bash
-python train.py --config configs/demo.yaml
-```
-
-Change something in `methods.py`, re-run, see if it helped. To compare methods:
-
-```bash
-python analyze.py --compare out/method_a out/method_b
-```
-
-This generates Pareto frontier plots, drift-vs-forgetting regressions, and layer heatmaps.
-
-For the full research context (hypotheses, prior work, experimental design), see [dev/RESEARCH.md](dev/RESEARCH.md).
+Gate rule: never formalize a claim that hasn't survived an experiment.
 
 ## File structure
 
 ```
 .
-├── README.md           # You are here
 ├── forget.py           # 5-minute demo: watch forgetting happen
 ├── train.py            # Continual training loop (~300 lines)
 ├── evaluate.py         # Eval harness + forgetting metrics
-├── analyze.py          # Drift computation, regression, plots
+├── analyze.py          # Drift analysis, R² regression, Pareto plots
 ├── methods.py          # All methods: naive, replay, distill, sfp
+├── features.py         # Activation hooks, PCA subspace, importance
 ├── data.py             # Dataset loading + memory buffers
 ├── model.py            # Model loading + LoRA setup
-├── features.py         # Activation hooks, PCA subspace, importance
-├── configs/
-│   ├── demo.yaml       # 5-minute demo config
-│   ├── fast.yaml       # 1-GPU quick validation
-│   └── full.yaml       # 8×H100 NeurIPS suite
-├── runs/
-│   ├── demo.sh         # Smoke test
-│   ├── speedrun.sh     # Fast falsification (Gate 1 + Gate 2)
-│   ├── full.sh         # Full experiment suite
-│   └── leaderboard.sh  # Run the leaderboard benchmark
-├── tasks/
-│   ├── math.py         # GSM8K evaluation
-│   ├── code.py         # HumanEval evaluation
-│   ├── ifeval.py       # Instruction-following evaluation
-│   ├── safety.py       # Safety / refusal evaluation
-│   └── domain.py       # Domain shift evaluation
-├── dev/
-│   ├── LEADERBOARD.md  # How to submit to the leaderboard
-│   └── RESEARCH.md     # Full research briefing
-├── pyproject.toml
-└── tests/
+├── configs/            # demo (5min CPU), fast (1 GPU), full (8×H100)
+├── lean-sfp/           # Lean 4 formalization (builds in Docker)
+│   └── SFP/
+│       ├── LinearAlgebra/Projections.lean
+│       ├── Loss/Preservation.lean
+│       ├── Loss/GradientOrthogonality.lean
+│       └── Paper/Reduction.lean    ← the main theorem
+├── paper/              # LaTeX paper (builds in Docker)
+├── tasks/              # Eval tasks: math, code, ifeval, safety
+├── runs/               # Experiment scripts
+└── dev/
+    ├── RESEARCH.md     # Full research briefing
+    └── LEADERBOARD.md  # How to submit
+```
+
+## Commands
+
+```bash
+python forget.py                    # watch forgetting happen (5 min, CPU)
+python train.py --method sfp        # train with SFP
+python analyze.py --compare a b     # compare two runs
+make lean                           # build Lean formalization (Docker)
+make lean-sorry                     # check unproved theorems
+make paper                          # build PDF (Docker)
 ```
 
 ## Contributing
 
-To add a new method:
 ```bash
 cp submissions/_example.py submissions/my_method.py
 # edit your loss function
 python submit.py submissions/my_method.py
 ```
 
-That's it. A GPU spins up in the cloud, runs the full benchmark (3 seeds, ~45 min), and your score appears on the leaderboard automatically. No GPU, no PR, no waiting for review.
-
-See [dev/LEADERBOARD.md](dev/LEADERBOARD.md) for details.
+A GPU spins up in the cloud, runs the benchmark (3 seeds, ~45 min), and your score appears on the [leaderboard](https://sfp-leaderboard.pages.dev) automatically.
 
 ## Cite
 
