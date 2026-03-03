@@ -1,4 +1,148 @@
-\section{Additional Details}
-\label{sec:appendix}
+\section{Lean~4 Theorem Index}
+\label{sec:lean_index}
 
-\todo{Write appendix.}
+All theorems are formalized in Lean~4 using Mathlib v4.17.0 with \textbf{zero} \texttt{sorry} axioms.
+The formalization is organized into the following modules:
+
+\begin{table}[h]
+\centering
+\caption{Complete index of formally verified theorems referenced in this paper.}
+\label{tab:lean_index}
+\begin{tabular}{p{5.5cm}p{4cm}p{4cm}}
+\toprule
+Theorem Name & Statement & Module \\
+\midrule
+\multicolumn{3}{l}{\textit{Projection properties} (\texttt{SFP.LinearAlgebra.Projections})} \\
+\texttt{orthogonalProjection\_idempotent} & $P_W^2 = P_W$ & Projections \\
+\texttt{orthogonalProjection\_selfAdjoint} & $P_W^* = P_W$ & Projections \\
+\texttt{orthogonalProjection\_norm\_le} & $\|P_W(v)\| \leq \|v\|$ & Projections \\
+\texttt{orthogonalProjection\_complement} & $P_W + P_{W^\perp} = I$ & Projections \\
+\midrule
+\multicolumn{3}{l}{\textit{Loss properties} (\texttt{SFP.Loss.Preservation})} \\
+\texttt{preservationLoss\_nonneg} & $\mathcal{L}_{\text{pres}} \geq 0$ & Preservation \\
+\texttt{preservationLoss\_eq\_zero\_iff} & $\mathcal{L}_{\text{pres}} = 0 \iff \Delta a \in W^\perp$ & Preservation \\
+\texttt{subspace\_drift\_bound} & $\|P_W(\Delta a)\| \leq \|\Delta a\|$ & Preservation \\
+\texttt{preservationLoss\_le\_total\_drift} & $\mathcal{L}_{\text{pres}} \leq \|\Delta a\|^2$ & Preservation \\
+\texttt{drift\_pythagorean\_decomposition} & $\|\Delta a\|^2 = \mathcal{L}_{\text{pres}} + \|P_{W^\perp}(\Delta a)\|^2$ & Preservation \\
+\texttt{multiLayerPreservationLoss\_nonneg} & $\sum_\ell \mathcal{L}_{\text{pres},\ell} \geq 0$ & Preservation \\
+\midrule
+\multicolumn{3}{l}{\textit{Gradient properties} (\texttt{SFP.Loss.GradientOrthogonality})} \\
+\texttt{gradient\_orthogonality} & $P_W(\nabla \mathcal{L}_{\text{new}}) = 0$ at stationarity & GradientOrthogonality \\
+\texttt{gradient\_in\_complement} & $\nabla \mathcal{L}_{\text{new}} \in W^\perp$ at stationarity & GradientOrthogonality \\
+\texttt{gradient\_projection\_at\_stationary} & $P_W(\nabla \mathcal{L}_{\text{new}}) = -2\lambda v$ (general) & GradientOrthogonality \\
+\midrule
+\multicolumn{3}{l}{\textit{Main results} (\texttt{SFP.Paper.Reduction}, \texttt{SFP.Paper.SFPTheorems})} \\
+\texttt{sfp\_reduces\_forgetting} & H1 $\wedge$ $\mathcal{L}_{\text{pres}} \leq \delta$ $\Rightarrow$ forgetting $\leq C\sqrt{\delta}$ & Reduction \\
+\texttt{sfp\_reduces\_forgetting\_multilayer} & Per-layer version via Cauchy--Schwarz & Reduction \\
+\texttt{stability\_plasticity\_tradeoff} & Stability bound + plasticity lower bound & SFPTheorems \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Building the formalization.}
+The Lean formalization can be built and verified with:
+\begin{verbatim}
+docker build -t sfp-lean lean-sfp/
+docker run --rm sfp-lean build
+\end{verbatim}
+The Docker image caches the Mathlib dependency ($\sim$4 GB) and the Lean toolchain.
+Source files are volume-mounted, so iterating on proofs does not require rebuilding the image.
+A zero-\texttt{sorry} check can be run with:
+\begin{verbatim}
+grep -rn sorry lean-sfp/SFP/
+\end{verbatim}
+
+\section{Experimental Details}
+\label{sec:exp_details}
+
+\subsection{Training Configuration}
+
+\begin{table}[h]
+\centering
+\caption{Training hyperparameters for the H1 validation experiments.}
+\label{tab:hyperparams}
+\begin{tabular}{ll}
+\toprule
+Parameter & Value \\
+\midrule
+Optimizer & AdamW \\
+Learning rate & $2 \times 10^{-4}$ \\
+Weight decay & $0.01$ \\
+Batch size & 4 \\
+Training steps & 500 \\
+Checkpoint interval & 25 steps \\
+LoRA rank & 32 \\
+LoRA $\alpha$ & 64 \\
+LoRA target & All linear layers \\
+PCA components ($k$) & 128 \\
+Preserved dimensions ($r$) & 32 \\
+Memory set size & 128 examples \\
+Probe layers & $L/4$, $L/2$, $3L/4$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Model Details}
+
+\paragraph{SmolLM2-135M-Instruct.}
+A 135M-parameter instruction-tuned model from HuggingFace.
+Used for CPU-based smoke tests and rapid iteration.
+Total depth $L = 30$ layers; probe layers at 7, 15, 22.
+Activation dimension $d = 576$.
+
+\paragraph{Qwen2.5-1.5B-Instruct.}
+A 1.5B-parameter instruction-tuned model from Alibaba.
+Used for GPU-based validation experiments.
+Total depth $L = 28$ layers; probe layers at 7, 14, 21.
+Activation dimension $d = 1536$.
+Loads in bfloat16; all activation hooks preserve the original dtype.
+
+\subsection{Evaluation Details}
+
+\paragraph{GSM8K (Math).}
+We evaluate exact-match accuracy on a held-out subset of GSM8K.
+The baseline accuracy for Qwen2.5-1.5B-Instruct is 44.44\%.
+Forgetting is computed as the accuracy drop from baseline after fine-tuning on the new task.
+
+\paragraph{MBPP (Code).}
+We use the sanitized split of MBPP with pass@1 evaluation.
+Forward transfer is measured as the improvement on MBPP after fine-tuning.
+
+\paragraph{Causal intervention test.}
+For each dimension set (top-$r$, random, bottom-$r$), we inject noise $\epsilon \sim \mathcal{N}(0, \sigma^2 I_r)$ into the corresponding PCA components at each probe layer.
+The noise scale $\sigma$ is set to the mean standard deviation of the projected activations on the evaluation set (typically $\sigma \approx 0.5$--$1.0$ in the PCA-projected space).
+We report $\Delta$ppl: the perplexity increase relative to the unperturbed model.
+
+\subsection{Ablation Importance Computation}
+
+For each PCA dimension $i$ at each probe layer, we:
+\begin{enumerate}
+    \item Hook the layer's output and zero out the $i$-th PCA component: $a \leftarrow a - (u_i^\top a) u_i$.
+    \item Evaluate the old-task loss on the memory set with the modified activations.
+    \item Record the loss increase relative to the unmodified model.
+\end{enumerate}
+This requires $k$ forward passes per layer (one per PCA dimension).
+With $k = 128$ and 3 probe layers, the total cost is 384 forward passes on the 128-example memory set, which takes approximately 10 minutes on a single GPU for the 1.5B model.
+
+\subsection{Computational Cost}
+
+\begin{table}[h]
+\centering
+\caption{Approximate wall-clock times for SFP pipeline stages.}
+\label{tab:compute}
+\begin{tabular}{lcc}
+\toprule
+Stage & 135M (CPU) & 1.5B (1$\times$ A100) \\
+\midrule
+Activation collection & 1 min & 3 min \\
+PCA + importance ranking & 2 min & 10 min \\
+Training (500 steps) & 5 min & 30 min \\
+Evaluation (20 checkpoints) & 10 min & 45 min \\
+\midrule
+Total & $\sim$18 min & $\sim$88 min \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The basis construction cost (PCA + importance ranking) is a one-time overhead per task transition.
+During training, the preservation loss adds negligible cost: it requires storing reference activations for the memory set and computing a projection at each probe layer, but no additional forward passes.

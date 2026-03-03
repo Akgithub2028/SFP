@@ -155,6 +155,52 @@ python analyze.py --compare out/sfp out/sfp_grad_importance
 - **Sorry budget**: `sorry` is fine for standard Mathlib facts (projections, Pythagorean). Never `sorry` the reduction theorems.
 - **Configs**: `demo.yaml` for ~5 min CPU tests, `fast.yaml` for 1-GPU validation, `full.yaml` for the real benchmark.
 
+## Development rules (learned the hard way)
+
+### Always test locally before Modal
+**NEVER fire off a Modal GPU run without testing locally first.** Modal runs cost money, take minutes to build images, and have slow debug cycles. Always:
+1. Run on CPU with SmolLM2-135M first: `--memory 16 --pca_k 16 --preserve_r 8`
+2. Use minimal eval: `--eval_samples 10 --noise_scales 1.0`
+3. Verify no crashes, correct output shapes, plausible values
+4. THEN launch on Modal with `--detach` for the real run
+
+### bfloat16 dtype discipline
+Qwen and most modern models load as **bfloat16**. Any code that touches activations must preserve dtype:
+- Forward hooks: always cast injected tensors to `h.dtype` — never assume float32
+- `torch.randn()` produces float32 by default — always `.to(dtype=h.dtype)` after
+- `torch.Generator` on CPU can't be used with CUDA tensors — generate on CPU then `.to(device, dtype)`
+- After any arithmetic in a hook, verify the output dtype matches the input: `assert h_new.dtype == h.dtype`
+- PCA/SVD operations upcast to float32 — that's fine for analysis, but cast back before injecting into the model
+
+### Transformer hook output format
+Transformer decoder layers return `BaseModelOutputWithPast` (not a plain tuple). When writing forward hooks:
+- Check `isinstance(output, tuple)` first (some layers return tuples)
+- Then check `hasattr(output, '__getitem__')` — BaseModelOutput supports indexing
+- `output[0]` is always the hidden states tensor
+- When returning modified output, preserve the original type — mutate in place for dataclass-like outputs
+
+### Experiment script pattern
+All experiment scripts (h1_control.py, causal_test.py, etc.) follow the same pattern:
+- Live in `scripts/`
+- Self-contained: import from `features`, `model`, `data` but no cross-script imports
+- Argparse with `--model`, `--device auto`, `--seed`, `--out_dir`
+- Save results as JSON + plots as PDF/PNG to `out_dir`
+- Print a summary table to stdout
+- Gate check at the end (pass/fail with clear criteria)
+
+### Modal wrappers
+For GPU experiments, create a thin `scripts/modal_*.py` wrapper:
+- Reuse the same pip install list as `modal_bench.py`
+- Use `modal.Volume` for persistent results
+- Always use `--detach` for long runs
+- Download results with `modal volume get <vol> <remote> <local>`
+
+### Research log discipline
+Every experiment gets an entry in `dev/RESEARCH.md` under `## Experiment Log`:
+- Date, goal, full config, results table, gate check, interpretation, next steps
+- Be honest about failures — record FAIL results, not just passes
+- Note caveats (model size, data points, statistical power)
+
 ## Current status
 
 ### Proved (no sorry)
@@ -172,7 +218,19 @@ python analyze.py --compare out/sfp out/sfp_grad_importance
 ### Fully proved
 All theorems are now verified with 0 `sorry` remaining.
 
+### H1 status (as of 2026-03-03)
+- **135M (CPU, correlational)**: FAIL — R² ranking inverted (bottom > random > total > top). Scale artifact.
+- **1.5B (GPU, correlational)**: PARTIAL PASS — R²(top-r)=0.933 > total=0.888 > random=0.850 > bottom=0.827. Correct ranking, but margin over random is modest.
+- **135M (CPU, causal)**: PASS — top Δppl=+0.85 >> random +0.21 >> bottom +0.02. Ablation importance identifies causally important dims even at small scale.
+- **1.5B (GPU, causal)**: Running on Modal. Results pending.
+- **Decision**: Keep PCA, strengthen with gradient-informed basis + causal intervention test.
+
+### Paper status
+All sections written (intro, related, method, experiments, conclusion, appendix). Key results tables populated. Pending: full baseline comparison, 1.5B causal test results, gradient basis comparison.
+
 ### Needs experiments
-- H1: R² of top-r drift vs. forgetting (target: ≥ 0.6)
+- H1 causal test (1.5B): GPU run launched, awaiting results
+- H1 gradient basis: compare gradient-informed basis R² vs PCA R²
+- Full baseline comparison: SFP vs naive, replay, LwF, hidden distill, ortho LoRA
 - H2: Pareto frontier comparison at M=128
 - H3: Feature interpretability / causal ablation

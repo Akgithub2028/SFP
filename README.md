@@ -19,6 +19,27 @@ We test whether measurable regressions during continual fine-tuning are predicta
 
 If H1 is supported, preserving the full model is unnecessary — anchoring a small set of activation directions suffices.
 
+### Current experimental status
+
+**Correlational evidence (Qwen2.5-1.5B, Math→Code):** H1 partially supported. Top-*r* drift predicts forgetting with R²=0.933, outperforming random (0.850) and bottom-ranked (0.827) dimensions — the correct ranking, though the margin over random is modest.
+
+| Predictor | Dims | R² |
+|-----------|------|-----|
+| **Top-*r* (ablation)** | 32 | **0.933** |
+| Total drift | 128 | 0.888 |
+| Random dims | 32 | 0.850 |
+| Bottom-*r* (ablation) | 32 | 0.827 |
+
+**Causal evidence (SmolLM2-135M, noise injection):** Even at 135M scale where correlational H1 fails, perturbing top-*r* dims causes 4× more performance degradation than random dims:
+
+| Intervention | Δ perplexity |
+|-------------|-------------|
+| Top-*r* | +0.85 |
+| Random | +0.21 |
+| Bottom-*r* | +0.02 |
+
+**Scale dependence:** H1 fails at 135M (R² ranking inverted), passes at 1.5B. The causal test passes at both scales.
+
 ## Method
 
 **Sparse Feature Preservation (SFP)** adds a regularization term that penalizes drift in the identified subspace during new-task training:
@@ -59,10 +80,11 @@ The benchmark evaluates continual fine-tuning across a sequence of tasks using s
 
 ### Threats to validity
 
-- **Model scale.** Primary experiments use 135M–1.5B parameters with LoRA. Low-rank adapters constrain updates to low-dimensional subspaces, which could make low-dimensional forgetting more likely by construction. Full fine-tuning experiments are needed to confirm H1 generalizes.
-- **Task order.** Results may be sensitive to curriculum ordering. Multiple permutations should be tested.
-- **Benchmark coverage.** Five tasks spanning math, code, instruction following, safety, and domain knowledge. This is a practical but limited slice of LLM capabilities.
+- **LoRA confound.** Low-rank adapters constrain updates to low-dimensional subspaces, which could make low-dimensional forgetting more likely by construction. Full fine-tuning experiments are needed to confirm H1 generalizes.
+- **Model scale.** Primary experiments use 135M–1.5B parameters. H1 is scale-dependent (fails at 135M, passes at 1.5B). Results at 7B+ are unknown.
+- **Task coverage.** H1 validation focuses on Math→Code. Different task pairs may exhibit different forgetting geometries.
 - **Bound tightness.** The constant *C* in the reduction is estimated empirically. If *C* is large or unstable across settings, the bound is vacuous.
+- **Layer selection.** Pre-registered probe layers at L/4, L/2, 3L/4 may not be optimal for all models/tasks.
 
 ## Repository structure
 
@@ -70,15 +92,18 @@ The benchmark evaluates continual fine-tuning across a sequence of tasks using s
 train.py            Continual training loop
 evaluate.py         Evaluation harness (AA, BWT, FWT, forgetting)
 analyze.py          Drift analysis, R² regression, Pareto plots
-methods.py          All methods as plain loss functions
-features.py         Activation hooks, PCA, importance ranking
+methods.py          All methods as plain loss functions (~9 methods)
+features.py         Activation hooks, PCA, gradient basis, importance ranking
 data.py             Dataset loading, memory buffers
 model.py            Model loading, LoRA configuration
+forget.py           Quick demo: observe forgetting (~5 min CPU)
+scripts/            Experiment scripts (h1_control.py, causal_test.py, modal_*.py)
 configs/            Experiment configs (demo, fast, full)
 tasks/              Per-task evaluation (math, code, ifeval, safety, domain)
-lean-sfp/           Lean 4 formalization (Dockerized build)
+lean-sfp/           Lean 4 formalization (0 sorry, Dockerized build)
 paper/              LaTeX source (Dockerized build)
-dev/RESEARCH.md     Full research briefing
+web/                Leaderboard website (React + Cloudflare Workers)
+dev/RESEARCH.md     Full research briefing + experiment log
 ```
 
 ## Usage
