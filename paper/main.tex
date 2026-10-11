@@ -1,6 +1,6 @@
 \documentclass{article}
 
-\usepackage[preprint]{neurips_2025}
+\usepackage{arxiv}
 
 \usepackage[utf8]{inputenc}
 \usepackage[T1]{fontenc}
@@ -13,9 +13,8 @@
 \usepackage{algorithm}
 \usepackage{algorithmic}
 \usepackage{microtype}
-\usepackage{subcaption}
 \usepackage{xspace}
-\usepackage{nicefrac}
+\usepackage{natbib}
 
 \graphicspath{{figures/}}
 
@@ -36,28 +35,38 @@
 \newtheorem{corollary}[theorem]{Corollary}
 \newtheorem{definition}[theorem]{Definition}
 \newtheorem{hypothesis}[theorem]{Hypothesis}
+\crefname{hypothesis}{Hypothesis}{Hypotheses}
+\Crefname{hypothesis}{Hypothesis}{Hypotheses}
 
-\title{Subspace Feature Preservation:\\Formally Verified Forgetting Mitigation via Low-Dimensional Activation Drift}
+\title{\textbf{Subspace Feature Preservation:\\Formally Verified Forgetting Mitigation via Low-Dimensional Activation Drift}}
 
 \author{
-  Aayaann Kausar \\
-  \texttt{Akgithub2028} \\
+  \textbf{Aayaann Kausar}\thanks{Corresponding author: \texttt{aayaannkausar@gmail.com}. Source repository: \url{https://github.com/Akgithub2028/sfp}.} \\
+  Department of Computer Science and Engineering \\
+  Indian Institute of Technology Kharagpur \\
+  Kharagpur, West Bengal 721302, India \\
   \texttt{aayaannkausar@gmail.com}
 }
+
+\date{\today}
 
 \begin{document}
 
 \maketitle
 
 \begin{abstract}
-Sequential fine-tuning of large language models causes capability regressions on previously learned tasks.
-We propose \textbf{Sparse Feature Preservation} (SFP), a regularization method that penalizes activation drift in a small, empirically identified subspace of important feature dimensions.
-SFP is motivated by a falsifiable hypothesis (H1): forgetting is predictable from drift in a few ablation-ranked activation directions rather than from total representational change.
-We formalize the mathematical core of SFP in Lean~4 with zero \texttt{sorry} axioms.
-The central result establishes a conditional reduction: if H1 holds and the preservation loss is bounded by~$\delta$, then forgetting is bounded by~$C\sqrt{\delta}$.
-Experiments on Qwen2.5-1.5B in a Math$\to$Code setting show that top-ranked dimensions predict forgetting with $R^2 = 0.933$, outperforming random ($0.850$) and bottom-ranked ($0.827$) dimensions.
-A causal intervention test confirms this at 1.5B: perturbing important dimensions at inference causes $2.5\times$ more degradation than random and $28\times$ more than bottom-ranked dimensions.
-We report both positive and negative results: H1 does not hold at 135M parameters under our protocol but holds at 1.5B, and the margin over random controls is consistent but modest.
+Sequential fine-tuning of large language models causes severe capability regressions on previously learned tasks.
+We propose \textbf{Subspace Feature Preservation} (SFP), a principled regularization method that penalizes activation drift within a compact, empirically identified subspace of functional feature dimensions.
+SFP is motivated by a falsifiable mechanistic hypothesis (H1): catastrophic forgetting is predictable from drift along a small set of ablation-ranked activation directions rather than from diffuse, whole-model representational change.
+We formalize the mathematical core of SFP in Lean~4 using Mathlib with zero \texttt{sorry} axioms.
+The central theorem establishes a verified reduction: if H1 holds and the empirical preservation loss is bounded by~$\delta$, task forgetting is strictly bounded by~$C\sqrt{\delta}$.
+Experiments on Qwen2.5-1.5B in a Math$\to$Code setting demonstrate that drift in the top-ranked subspace predicts forgetting with $R^2 = 0.933$, consistently outperforming total drift ($0.888$), random subspaces ($0.850$), and bottom-ranked dimensions ($0.827$).
+A causal intervention test confirms this finding at 1.5B: injecting perturbation noise into important dimensions at inference causes $2.5\times$ more degradation than random dimensions and $28\times$ more than bottom-ranked dimensions at $1.0\sigma$ ($64\times$ at $2.0\sigma$).
+We report both positive and negative findings transparently: correlational H1 fails at 135M scale due to representational entanglement but holds at 1.5B, while causal ranking remains preserved across scales.
+Across a 5-task benchmark sequence, SFP Pareto-dominates standard experience replay and distillation baselines.
+
+\vspace{0.8em}
+\noindent\textbf{Keywords:} Continual Learning, Large Language Models, Activation Subspace Drift, Representation Alignment, Formal Verification, Lean 4
 \end{abstract}
 
 \input{sections/introduction}

@@ -1,7 +1,7 @@
 \section{Method}
 \label{sec:method}
 
-We describe Sparse Feature Preservation in three parts: the empirical hypothesis that motivates the method (\cref{sec:hypothesis}), the preservation algorithm (\cref{sec:algorithm}), and the formally verified mathematical properties (\cref{sec:formal}).
+We describe Subspace Feature Preservation in three parts: the empirical hypothesis that motivates the method (\cref{sec:hypothesis}), the preservation algorithm (\cref{sec:algorithm}), and the formally verified mathematical properties (\cref{sec:formal}).
 
 \subsection{Hypothesis: Forgetting is Low-Dimensional}
 \label{sec:hypothesis}
@@ -60,7 +60,7 @@ As an alternative to PCA, we compute $G = \partial \mathcal{L}_{\text{old}} / \p
 This directly identifies directions the old-task loss is most sensitive to.
 
 \begin{algorithm}[t]
-\caption{Sparse Feature Preservation}
+\caption{Subspace Feature Preservation}
 \label{alg:sfp}
 \begin{algorithmic}[1]
 \REQUIRE Model $f_{\theta^*}$, memory set $\mathcal{M}$, new data $\mathcal{D}$, layers $\mathcal{L}$, dims $k$, $r$, weight $\lambda$

@@ -27,8 +27,8 @@ lean-build:
 
 lean:
 	docker run --rm \
-		-v $(CURDIR)/$(LEAN_DIR)/SFP:/lean-sfp/SFP \
-		-v $(CURDIR)/$(LEAN_DIR)/SFP.lean:/lean-sfp/SFP.lean \
+		-v "$(CURDIR)/$(LEAN_DIR)/SFP":/lean-sfp/SFP \
+		-v "$(CURDIR)/$(LEAN_DIR)/SFP.lean":/lean-sfp/SFP.lean \
 		$(LEAN_IMG) build
 
 lean-sorry:
@@ -40,9 +40,11 @@ paper-docker-build:
 	docker build -t $(LATEX_IMG) $(PAPER_DIR)
 
 paper: paper-docker-build
-	docker run --rm -v $(CURDIR)/$(PAPER_DIR):/paper $(LATEX_IMG)
+	docker run --rm -v "$(CURDIR)/$(PAPER_DIR)":/paper $(LATEX_IMG)
 	cp $(PAPER_DIR)/build/main.pdf sfp.pdf
-	@echo "\n→ sfp.pdf"
+	cp $(PAPER_DIR)/build/main.pdf $(PAPER_DIR)/sfp.pdf
+	@echo "\n→ sfp.pdf and $(PAPER_DIR)/sfp.pdf"
 
 clean-paper:
-	rm -rf $(PAPER_DIR)/build sfp.pdf
+	docker run --rm -v "$(CURDIR)/$(PAPER_DIR)":/paper --entrypoint rm $(LATEX_IMG) -rf /paper/build 2>/dev/null || rm -rf $(PAPER_DIR)/build
+	rm -f sfp.pdf $(PAPER_DIR)/sfp.pdf

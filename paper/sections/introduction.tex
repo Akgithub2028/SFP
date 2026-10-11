@@ -5,7 +5,7 @@ Large language models are increasingly fine-tuned for specialized tasks---mathem
 This phenomenon, \emph{catastrophic forgetting}~\citep{mccloskey1989catastrophic, french1999catastrophic}, remains a central obstacle to continual learning in LLMs~\citep{delange2021continual}.
 Existing mitigations include replay buffers~\citep{chaudhry2019tiny}, knowledge distillation~\citep{li2017learning}, parameter regularization~\citep{kirkpatrick2017overcoming}, and architectural constraints~\citep{qin2024exploring}, but few provide a formally verified link between a measurable preserved quantity and a bound on forgetting.
 
-We propose \textbf{Sparse Feature Preservation} (SFP), a method grounded in a specific mechanistic hypothesis: that old-task performance degradation is largely explained by drift in a small number of activation feature dimensions, rather than by diffuse changes across the full activation space.
+We propose \textbf{Subspace Feature Preservation} (SFP), a method grounded in a specific mechanistic hypothesis: that old-task performance degradation is largely explained by drift in a small number of activation feature dimensions, rather than by diffuse changes across the full activation space.
 If this hypothesis holds, then preserving only the important feature dimensions during training should suffice to prevent forgetting, while leaving the model free to learn in the complementary subspace.
 
 Our approach proceeds in three stages.
@@ -27,7 +27,7 @@ We report this scale dependence transparently.
 \paragraph{Contributions.}
 \begin{enumerate}
     \item A \textbf{falsifiable measurement protocol} for the low-dimensional forgetting hypothesis, with pre-registered ablation controls (random basis, random selection, bottom-$r$).
-    \item \textbf{Sparse Feature Preservation}, a continual learning method that selectively preserves ablation-important activation features ($\sim$40 lines of code), with a gradient-informed variant.
+    \item \textbf{Subspace Feature Preservation}, a continual learning method that selectively preserves ablation-important activation features ($\sim$40 lines of code), with a gradient-informed variant.
     \item \textbf{Formal verification} of SFP's mathematical reduction in Lean~4: all theorems machine-checked with zero \texttt{sorry}, making assumptions explicit.
     \item \textbf{Empirical evaluation} at two model scales (135M--1.5B) with honest reporting of both positive and negative results, including scale-dependent effects.
 \end{enumerate}

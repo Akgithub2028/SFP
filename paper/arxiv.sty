@@ -1,0 +1,88 @@
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{arxiv}[2025/01/01 Standard arXiv Preprint Style]
+
+\RequirePackage[margin=1in]{geometry}
+\RequirePackage{fancyhdr}
+\RequirePackage{xcolor}
+
+% Color definitions
+\definecolor{arxivblue}{RGB}{0,51,153}
+\definecolor{darkgray}{RGB}{70,70,70}
+
+% Hyperref setup
+\@ifpackageloaded{hyperref}{
+  \hypersetup{
+    colorlinks=true,
+    linkcolor=arxivblue,
+    citecolor=arxivblue,
+    urlcolor=arxivblue
+  }
+}{}
+
+% Running headers and footers
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\textcolor{darkgray}{\itshape Subspace Feature Preservation: Forgetting Mitigation via Low-Dimensional Drift}}
+\fancyhead[R]{\small\textcolor{darkgray}{\scshape A Preprint}}
+\fancyfoot[C]{\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+\renewcommand{\footrulewidth}{0pt}
+
+% Title and Author formatting
+\def\@maketitle{%
+  \newpage
+  \null
+  \vskip 1.5em%
+  \begin{center}%
+    \let \footnote \thanks
+    {\LARGE\bfseries \@title \par}%
+    \vskip 1.5em%
+    {\large
+      \lineskip .5em%
+      \begin{tabular}[t]{c}%
+        \@author
+      \end{tabular}\par}%
+    \vskip 1.0em%
+    {\normalsize\textcolor{darkgray}{\@date}\par}%
+  \end{center}%
+  \par
+  \vskip 1.5em%
+}
+
+\def\maketitle{\par
+  \begingroup
+    \renewcommand\thefootnote{\@fnsymbol\c@footnote}%
+    \def\@makefnmark{\rlap{\@textsuperscript{\normalfont\@thefnmark}}}%
+    \long\def\@makefntext##1{\parindent 1em\noindent
+            \hb@xt@1.8em{%
+                \hss\@textsuperscript{\normalfont\@thefnmark}}##1}%
+    \if@twocolumn
+      \ifnum \col@number=\@ne
+        \@maketitle
+      \else
+        \twocolumn[\@maketitle]%
+      \fi
+    \else
+      \newpage
+      \global\@topnum\z@
+      \@maketitle
+    \fi
+    \thispagestyle{fancy}\@thanks
+  \endgroup
+  \setcounter{footnote}{0}%
+}
+
+% Abstract environment
+\renewenvironment{abstract}{%
+  \begin{center}%
+    {\bfseries\large Abstract\par}%
+  \end{center}%
+  \vskip 0.5em%
+  \begin{quote}%
+  \small%
+}{%
+  \end{quote}%
+  \vskip 1.5em%
+}
+
+\endinput
