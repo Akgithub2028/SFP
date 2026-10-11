@@ -9,7 +9,7 @@ from prometheus_client import CollectorRegistry, Gauge, push_to_gateway
 
 
 def _auth_handler(url, method, timeout, headers, data):
-    """Custom handler that injects X-Push-Token for nginx auth."""
+    """Custom handler that injects X-Push-Token auth."""
     token = os.environ.get("SFP_PUSH_TOKEN", "")
     req = Request(url, data=data)
     for k, v in headers:

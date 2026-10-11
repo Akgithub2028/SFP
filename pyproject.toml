@@ -34,7 +34,6 @@ metrics = [
 [tool.ruff]
 target-version = "py312"
 line-length = 100
-exclude = ["deploy/"]
 
 [tool.ruff.lint]
 select = [

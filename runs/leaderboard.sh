@@ -1,6 +1,6 @@
 #!/bin/bash
 # ─────────────────────────────────────────────────────────────────
-# Leaderboard benchmark — the official competition evaluation.
+# SFP Continual Learning benchmark evaluation.
 #
 # Follows best-practice CL benchmark design (CLEAR, CTrL, Avalanche):
 #   - 5 tasks (math, code, ifeval, safety, domain)
@@ -11,7 +11,6 @@
 # Usage:
 #   bash runs/leaderboard.sh sfp 128          # run method with memory=128
 #   bash runs/leaderboard.sh naive 0          # no memory baseline
-#   bash runs/leaderboard.sh my_method 128 submissions/my_method.py  # submission
 # ─────────────────────────────────────────────────────────────────
 set -e
 
@@ -29,7 +28,7 @@ ORDERINGS=(
 SEEDS=(42 43 44)
 
 echo "╔══════════════════════════════════════════════════════════╗"
-echo "║  SFP Leaderboard Benchmark                              ║"
+echo "║  SFP Continual Learning Benchmark                       ║"
 echo "╠══════════════════════════════════════════════════════════╣"
 echo "║  Method    : $METHOD"
 echo "║  Memory    : $MEMORY"

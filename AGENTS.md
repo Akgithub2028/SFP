@@ -226,7 +226,7 @@ All theorems are now verified with 0 `sorry` remaining.
 - **Decision**: H1 has both correlational (R²=0.933) and causal (28× top/bottom at 1σ) support at 1.5B. Keep PCA, strengthen with gradient-informed basis.
 
 ### Paper status
-All sections written (intro, related, method, experiments, conclusion, appendix). Key results tables populated with 1.5B correlational and causal results. Paper hosted at /paper.pdf on the website (Cloudflare Workers). Pending: full baseline comparison, gradient basis comparison.
+All sections written (intro, related, method, experiments, conclusion, appendix). Key results tables populated with 1.5B correlational and causal results. Paper PDF generated via Docker (`make paper` -> `sfp.pdf`). Pending: full baseline comparison, gradient basis comparison.
 
 ### Needs experiments
 - ~~H1 causal test (1.5B)~~: ✅ DONE — PASS at all noise scales
@@ -234,8 +234,3 @@ All sections written (intro, related, method, experiments, conclusion, appendix)
 - Full baseline comparison: SFP vs naive, replay, LwF, hidden distill, ortho LoRA
 - H2: Pareto frontier comparison at M=128
 - H3: Feature interpretability / causal ablation
-
-### Website
-- Deployed on Cloudflare Workers: `npx wrangler deploy` from `web/`
-- Paper PDF served at `/paper.pdf` (copied from `sfp.pdf` to `web/public/paper.pdf`)
-- After rebuilding paper with `make paper`, also `cp sfp.pdf web/public/paper.pdf`, rebuild web (`npm run build`), and redeploy (`npx wrangler deploy`)
