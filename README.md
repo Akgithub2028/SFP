@@ -10,11 +10,6 @@
 [![Continual Learning](https://img.shields.io/badge/Task-Continual_Learning-blue.svg)](https://arxiv.org/abs/2404.16789)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-<br/>
-
-**Aayaann Kausar**  
-*Indian Institute of Technology Kharagpur*  
-`aayaannkausar@gmail.com` • [@Akgithub2028](https://github.com/Akgithub2028)
 
 <br/>
 
