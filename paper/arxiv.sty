@@ -9,20 +9,24 @@
 \definecolor{arxivblue}{RGB}{0,51,153}
 \definecolor{darkgray}{RGB}{70,70,70}
 
-% Hyperref setup
-\@ifpackageloaded{hyperref}{
-  \hypersetup{
-    colorlinks=true,
-    linkcolor=arxivblue,
-    citecolor=arxivblue,
-    urlcolor=arxivblue
-  }
-}{}
+% Ensure hyperref uses colorlinks without border boxes
+\AtBeginDocument{
+  \@ifpackageloaded{hyperref}{
+    \hypersetup{
+      colorlinks=true,
+      linkcolor=arxivblue,
+      citecolor=arxivblue,
+      urlcolor=arxivblue,
+      filecolor=arxivblue,
+      pdfborder={0 0 0}
+    }
+  }{}
+}
 
-% Running headers and footers
+% Running headers and footers (starting from page 2)
 \pagestyle{fancy}
 \fancyhf{}
-\fancyhead[L]{\small\textcolor{darkgray}{\itshape Subspace Feature Preservation: Forgetting Mitigation via Low-Dimensional Drift}}
+\fancyhead[L]{\small\textcolor{darkgray}{\itshape Subspace Feature Preservation}}
 \fancyhead[R]{\small\textcolor{darkgray}{\scshape A Preprint}}
 \fancyfoot[C]{\thepage}
 \renewcommand{\headrulewidth}{0.4pt}
@@ -67,7 +71,7 @@
       \global\@topnum\z@
       \@maketitle
     \fi
-    \thispagestyle{fancy}\@thanks
+    \thispagestyle{plain}\@thanks
   \endgroup
   \setcounter{footnote}{0}%
 }
