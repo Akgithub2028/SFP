@@ -17,7 +17,7 @@
 
 ## How to submit
 
-1. Fork the repo
+1. Clone the repository (`git clone https://github.com/Akgithub2028/sfp.git`)
 2. Add your method to `methods.py`:
    - Write a loss function (see existing ones for the pattern)
    - Register it in the `METHODS` dict

@@ -5,7 +5,7 @@ After=network.target
 [Service]
 Type=simple
 User=ubuntu
-WorkingDirectory=/home/ubuntu/github/paradigmxyz/sfp
+WorkingDirectory=/home/ubuntu/github/Akgithub2028/sfp
 ExecStart=/home/ubuntu/.local/bin/uvicorn scripts.submit_server:app --host 0.0.0.0 --port 8090
 Restart=always
 RestartSec=5

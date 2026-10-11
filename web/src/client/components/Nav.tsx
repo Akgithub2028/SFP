@@ -40,7 +40,7 @@ export default function Nav() {
               Motivation
             </Link>
             <a
-              href="https://github.com/paradigmxyz/sfp"
+              href="https://github.com/Akgithub2028/sfp"
               className="text-sm"
               style={{ color: "var(--text-dim)" }}
             >

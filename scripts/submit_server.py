@@ -1,7 +1,7 @@
 """
 scripts/submit_server.py — Leaderboard submission API with SQLite.
 
-Runs on dev-georgios. Accepts method code, benchmarks on Modal, stores in SQLite.
+Runs on server. Accepts method code, benchmarks on Modal, stores in SQLite.
 
     uvicorn scripts.submit_server:app --host 0.0.0.0 --port 8090
 
@@ -32,7 +32,7 @@ from pydantic import BaseModel
 app = FastAPI(title="sfp submissions", version="0.1.0")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
-REPO_DIR = Path.home() / "github" / "paradigmxyz" / "sfp"
+REPO_DIR = Path.home() / "github" / "Akgithub2028" / "sfp"
 DB_PATH = Path.home() / "sfp.db"
 
 BLOCKED_IMPORTS = {

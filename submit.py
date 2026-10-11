@@ -29,7 +29,7 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
-_DEFAULT_SERVER = "http://sfp.paradigm.xyz:8090"
+_DEFAULT_SERVER = "http://localhost:8090"
 _server = _DEFAULT_SERVER
 
 

@@ -1,0 +1,45 @@
+{
+  "project": "Subspace Feature Preservation (SFP)",
+  "author": "Aayaann Kausar",
+  "github_username": "Akgithub2028",
+  "benchmark_protocol_version": "1.0.0",
+  "configurations": {
+    "primary_1.5b_benchmark": {
+      "model": "Qwen/Qwen2.5-1.5B-Instruct",
+      "dtype": "bfloat16",
+      "lora_rank": 64,
+      "lora_alpha": 128,
+      "lora_dropout": 0.05,
+      "lora_target_modules": ["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"],
+      "optimizer": "adamw",
+      "learning_rate": 2e-4,
+      "lr_scheduler": "cosine",
+      "warmup_steps": 100,
+      "batch_size_per_device": 4,
+      "gradient_accumulation_steps": 4,
+      "effective_batch_size": 16,
+      "steps_per_task": 2000,
+      "tasks": ["math", "code", "ifeval", "safety", "domain"],
+      "task_orderings": [
+        ["math", "code", "ifeval", "safety", "domain"],
+        ["domain", "math", "code", "ifeval", "safety"],
+        ["safety", "domain", "ifeval", "code", "math"]
+      ],
+      "seeds": [42, 43, 44],
+      "memory_budget": 128,
+      "pca_k": 128,
+      "preserve_r": 32,
+      "probe_layers": [7, 14, 21],
+      "sfp_lambda": 1.0
+    },
+    "scale_falsification_control": {
+      "model": "HuggingFaceTB/SmolLM2-135M-Instruct",
+      "lora_rank": 16,
+      "steps_per_task": 50,
+      "memory_budget": 16,
+      "pca_k": 16,
+      "preserve_r": 8,
+      "seeds": [42]
+    }
+  }
+}

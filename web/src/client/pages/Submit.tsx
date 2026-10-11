@@ -24,7 +24,7 @@ export default function Submit() {
           <h3 className="mb-3 text-lg font-semibold" style={{ color: "var(--text)" }}>
             <span style={{ color: "var(--accent)" }}>1.</span> Clone the repo
           </h3>
-          <CodeBlock language="bash">{`git clone https://github.com/paradigmxyz/sfp.git && cd sfp
+          <CodeBlock language="bash">{`git clone https://github.com/Akgithub2028/sfp.git && cd sfp
 uv sync`}</CodeBlock>
         </section>
 
@@ -59,7 +59,7 @@ def my_replay_loss(
           <p className="mt-3">
             Your function can use anything from PyTorch. You can also define a <code className="px-1" style={{ background: "var(--surface)" }}>SETUP</code> attribute
             to run code at each task boundary (e.g., snapshot a teacher model for distillation).
-            See <a href="https://github.com/paradigmxyz/sfp/blob/master/methods.py" style={{ color: "var(--accent)" }}>methods.py</a> for
+            See <a href="https://github.com/Akgithub2028/sfp/blob/master/methods.py" style={{ color: "var(--accent)" }}>methods.py</a> for
             all baseline implementations.
           </p>
         </section>

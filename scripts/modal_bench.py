@@ -111,7 +111,7 @@ def run_seed_a10g(
 
 
 def _run(method: str, memory: int, seed: int, steps: int, model_name: str, tasks: str, code: str = "") -> dict:
-    """Shared training logic. Pushes metrics to Prometheus on dev-georgios."""
+    """Shared training logic."""
     import json
     import subprocess
 

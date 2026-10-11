@@ -18,8 +18,8 @@ export const MOCK_LEADERBOARD: LeaderboardData = {
   entries: [
     {
       method: "sfp",
-      description: "Sparse Feature Preservation — our method",
-      contributor: "paradigm",
+      description: "Subspace Feature Preservation — our method",
+      contributor: "Akgithub2028",
       date: "2026-02-28T12:00:00Z",
       score_mean: 0.7124,
       score_std: 0.0189,
@@ -27,12 +27,12 @@ export const MOCK_LEADERBOARD: LeaderboardData = {
       retention_std: 0.0231,
       plasticity_mean: 0.6500,
       plasticity_std: 0.0142,
-      pr: "https://github.com/paradigmxyz/sfp/pull/1",
+      pr: "https://github.com/Akgithub2028/sfp/pull/1",
     },
     {
       method: "replay",
       description: "Experience replay with 128-token memory buffer",
-      contributor: "paradigm",
+      contributor: "Akgithub2028",
       date: "2026-02-27T10:00:00Z",
       score_mean: 0.5892,
       score_std: 0.0245,
@@ -56,7 +56,7 @@ export const MOCK_LEADERBOARD: LeaderboardData = {
     {
       method: "naive",
       description: "Standard fine-tuning, no forgetting mitigation",
-      contributor: "paradigm",
+      contributor: "Akgithub2028",
       date: "2026-02-26T08:00:00Z",
       score_mean: 0.3280,
       score_std: 0.0310,
@@ -92,7 +92,7 @@ export const MOCK_LEADERBOARD: LeaderboardData = {
     {
       method: "sfp_random_basis",
       description: "SFP with random orthonormal basis (ablation)",
-      contributor: "paradigm",
+      contributor: "Akgithub2028",
       date: "2026-03-02T15:00:00Z",
       score_mean: 0.5050,
       score_std: 0.0330,
