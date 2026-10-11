@@ -29,7 +29,7 @@ print(','.join(tasks))
             continue
         fi
         echo "  Running $METHOD ..."
-        python train.py \
+        python -m sfp.train \
             --method "$METHOD" \
             --model HuggingFaceTB/SmolLM2-135M-Instruct \
             --tasks "$TASK_ORDER" \
@@ -42,4 +42,4 @@ done
 
 echo ""
 echo "=== Analyzing order sensitivity ==="
-python analyze.py --order-sensitivity "$OUT_BASE"/*
+python -m sfp.analyze --order-sensitivity "$OUT_BASE"/*

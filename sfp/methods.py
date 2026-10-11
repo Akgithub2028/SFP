@@ -371,7 +371,7 @@ def method_setup(
         teacher.eval()
         for p in teacher.parameters():
             p.requires_grad = False
-        from features import get_layer_names
+        from sfp.features import get_layer_names
         layers = kw.get("layers") or get_layer_names(model)
         result = {"teacher": teacher, "layers": layers}
     elif setup_key == "orthogonal":
@@ -411,7 +411,7 @@ def sfp_setup(
 
     Returns: {"basis": {...}, "anchor_acts": {...}}
     """
-    from features import (
+    from sfp.features import (
         build_pca_basis,
         collect_activations,
         get_layer_names,
@@ -456,7 +456,7 @@ def sfp_grad_setup(
 
     Returns: {"basis": {...}, "anchor_acts": {...}}
     """
-    from features import (
+    from sfp.features import (
         build_gradient_basis,
         collect_activations,
         get_layer_names,

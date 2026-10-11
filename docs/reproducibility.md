@@ -44,7 +44,7 @@ pip install -e ".[dev]"
 Observe sequential capability degradation on SmolLM2-135M without requiring a GPU:
 
 ```bash
-python forget.py
+python -m sfp.forget
 ```
 
 ### 3.2 Single-Method Training
@@ -52,21 +52,21 @@ Train a model using Subspace Feature Preservation (SFP):
 
 ```bash
 # Train SFP with memory budget of 128 samples
-python train.py --method sfp --memory 128 --model HuggingFaceTB/SmolLM2-135M-Instruct
+python -m sfp.train --method sfp --memory 128 --model HuggingFaceTB/SmolLM2-135M-Instruct
 
 # Fast GPU validation run
-python train.py --config configs/fast.yaml --method sfp
+python -m sfp.train --config configs/fast.yaml --method sfp
 ```
 
 ### 3.3 Baseline Comparison
 Compare naive sequential fine-tuning against SFP:
 
 ```bash
-python train.py --config configs/fast.yaml --method naive --out_dir out/naive
-python train.py --config configs/fast.yaml --method sfp --out_dir out/sfp
+python -m sfp.train --config configs/fast.yaml --method naive --out_dir out/naive
+python -m sfp.train --config configs/fast.yaml --method sfp --out_dir out/sfp
 
 # Compute drift, R² regressions, and comparison plots
-python analyze.py --compare out/naive out/sfp
+python -m sfp.analyze --compare out/naive out/sfp
 ```
 
 ### 3.4 Causal Intervention Test (Hypothesis H1)

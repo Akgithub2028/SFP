@@ -118,7 +118,7 @@ def _run(method: str, memory: int, seed: int, steps: int, model_name: str, tasks
     out_dir = f"/root/sfp/out/bench/{method}_m{memory}_s{seed}"
 
     cmd = [
-        "python", "train.py",
+        "python", "-m", "sfp.train",
         "--method", method,
         "--memory", str(memory),
         "--seed", str(seed),

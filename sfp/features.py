@@ -172,7 +172,7 @@ def build_gradient_basis(
     Returns:
         {layer_name: U_grad tensor [hidden_dim, k]}
     """
-    from data import get_batch
+    from sfp.data import get_batch
 
     if device == "auto":
         device = str(next(model.parameters()).device)

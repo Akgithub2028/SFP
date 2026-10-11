@@ -43,24 +43,24 @@ Run the experiment to test the hypothesis:
 
 ```bash
 # Quick falsification (~5 min, CPU)
-python train.py --config configs/demo.yaml --method sfp
+python -m sfp.train --config configs/demo.yaml --method sfp
 
 # Compare methods
-python train.py --config configs/fast.yaml --method naive
-python train.py --config configs/fast.yaml --method sfp
-python analyze.py --compare out/naive out/sfp
+python -m sfp.train --config configs/fast.yaml --method naive
+python -m sfp.train --config configs/fast.yaml --method sfp
+python -m sfp.analyze --compare out/naive out/sfp
 
 # Full benchmark (GPU, ~45 min)
 bash runs/full.sh
 ```
 
 Key files:
-- `train.py` — training loop, ~300 lines
-- `evaluate.py` — eval harness + forgetting metrics
-- `analyze.py` — drift computation, R² regression, Pareto plots
-- `methods.py` — all methods as plain loss functions
-- `features.py` — activation hooks, PCA, importance ranking
-- `data.py` — datasets + memory buffers
+- `sfp/train.py` — training loop, ~300 lines
+- `sfp/evaluate.py` — eval harness + forgetting metrics
+- `sfp/analyze.py` — drift computation, R² regression, Pareto plots
+- `sfp/methods.py` — all methods as plain loss functions
+- `sfp/features.py` — activation hooks, PCA, importance ranking
+- `sfp/data.py` — datasets + memory buffers
 
 **Gate rule**: if an experiment falsifies a hypothesis, update RESEARCH.md before proceeding.
 Don't formalize claims that don't survive experiments.
@@ -139,10 +139,10 @@ Example — testing a new hypothesis "importance ranking via gradient norm beats
 
 ```bash
 # 1. Add hypothesis to RESEARCH.md (with R² threshold)
-# 2. Implement gradient-based importance in features.py
+# 2. Implement gradient-based importance in sfp/features.py
 # 3. Run experiment
-python train.py --config configs/fast.yaml --method sfp_grad_importance
-python analyze.py --compare out/sfp out/sfp_grad_importance
+python -m sfp.train --config configs/fast.yaml --method sfp_grad_importance
+python -m sfp.analyze --compare out/sfp out/sfp_grad_importance
 # 4. If it wins: formalize the gradient importance bound in Lean
 # 5. If it loses: note in RESEARCH.md as falsified, move on
 ```

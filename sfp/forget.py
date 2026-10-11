@@ -21,8 +21,15 @@ import argparse
 import torch
 from tqdm import tqdm
 
-from data import get_batch, load_task
-from model import load_model
+import sys
+from pathlib import Path
+
+# Add project root to sys.path if run directly as script
+if __package__ is None or __package__ == "":
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from sfp.data import get_batch, load_task
+from sfp.model import load_model
 
 # ---------------------------------------------------------------------------
 # Inline math eval — no dataset download needed

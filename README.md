@@ -1,16 +1,26 @@
+<div align="center">
+
 # Subspace Feature Preservation (SFP)
 
 ### Studying Low-Dimensional Representation Drift and Catastrophic Forgetting in Sequential LLM Fine-Tuning
 
+[![Paper PDF](https://img.shields.io/badge/Paper-ArXiv_Preprint-B31B1B.svg?logo=arxiv&logoColor=white)](paper/sfp.pdf)
+[![Lean 4 Verified](https://img.shields.io/badge/Lean_4-0_sorry-brightgreen.svg)](lean-sfp/)
 [![PyTorch](https://img.shields.io/badge/PyTorch-2.0+-EE4C2C.svg?logo=pytorch&logoColor=white)](https://pytorch.org/)
 [![Continual Learning](https://img.shields.io/badge/Task-Continual_Learning-blue.svg)](https://arxiv.org/abs/2404.16789)
-[![Lean 4 Verified](https://img.shields.io/badge/Lean_4-0_sorry-brightgreen.svg)](lean-sfp/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-[**Paper (PDF)**](paper/main.tex) | [**Code**](sfp/) | [**Results**](results/) | [**Documentation**](docs/) | [**Reproducibility**](docs/reproducibility.md)
+<br/>
 
-**Author**: Aayaann Kausar ([@Akgithub2028](https://github.com/Akgithub2028))  
-**Research Focus**: Continual Learning, Representation Drift, Mechanistic Interpretability, Formally Verified Guarantees
+**Aayaann Kausar**  
+*Indian Institute of Technology Kharagpur*  
+`aayaannkausar@gmail.com` • [@Akgithub2028](https://github.com/Akgithub2028)
+
+<br/>
+
+[**Paper (PDF)**](paper/sfp.pdf) • [**Lean Proofs**](lean-sfp/) • [**Source Code**](sfp/) • [**Benchmarks**](results/) • [**Docs**](docs/) • [**Reproducibility**](docs/reproducibility.md)
+
+</div>
 
 ---
 
@@ -273,21 +283,21 @@ Detailed tables are cataloged in [`results/tables/`](results/tables/).
 Observe forgetting on SmolLM2-135M locally:
 
 ```bash
-git clone https://github.com/Akgithub2028/sfp.git && cd sfp
+git clone https://github.com/Akgithub2028/SFP.git && cd SFP
 uv sync
-python forget.py
+python -m sfp.forget
 ```
 
 ### 1-GPU Validation Run
 ```bash
-python train.py --config configs/fast.yaml --method sfp
+python -m sfp.train --config configs/fast.yaml --method sfp
 ```
 
 ### Method Comparison
 ```bash
-python train.py --config configs/fast.yaml --method naive --out_dir out/naive
-python train.py --config configs/fast.yaml --method sfp --out_dir out/sfp
-python analyze.py --compare out/naive out/sfp
+python -m sfp.train --config configs/fast.yaml --method naive --out_dir out/naive
+python -m sfp.train --config configs/fast.yaml --method sfp --out_dir out/sfp
+python -m sfp.analyze --compare out/naive out/sfp
 ```
 
 ### Lean 4 Proof Verification
@@ -322,7 +332,15 @@ Full instructions are documented in [`docs/reproducibility.md`](docs/reproducibi
 │   └── limitations.md        # Threats to validity & open questions
 │
 ├── sfp/                      # Core SFP package
-│   └── __init__.py
+│   ├── __init__.py           # Package API and submodule exports
+│   ├── train.py              # Continual fine-tuning training loop
+│   ├── methods.py            # Objective functions (SFP, EWC, replay, distill)
+│   ├── features.py           # PCA extraction & importance ranking
+│   ├── evaluate.py           # Evaluation harness & metrics
+│   ├── analyze.py            # Drift analysis & Pareto computation
+│   ├── model.py              # Model loading & LoRA configuration
+│   ├── data.py               # Dataset loading & memory buffer management
+│   └── forget.py             # Forgetting demonstration CLI
 ├── tasks/                    # Task evaluation modules
 │   ├── math.py               # GSM8K exact match
 │   ├── code.py               # MBPP / HumanEval sandbox

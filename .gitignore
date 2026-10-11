@@ -12,7 +12,6 @@ out/
 *.pt
 *.npy
 *.pdf
-!sfp.pdf
 !paper/sfp.pdf
 wandb/
 .DS_Store

@@ -15,7 +15,12 @@ import argparse
 import importlib
 import json
 import os
+import sys
 from pathlib import Path
+
+# Add project root to sys.path if run directly as script
+if __package__ is None or __package__ == "":
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 # ── Primary metric per task (used for forgetting / retention) ────────────
 
@@ -350,7 +355,7 @@ def main() -> None:
     args = parser.parse_args()
 
     if args.checkpoint:
-        from model import load_model
+        from sfp.model import load_model
 
         model, tokenizer = load_model(args.checkpoint)
         results = evaluate_all(model, tokenizer, args.tasks, mode=args.mode)

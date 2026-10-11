@@ -4,11 +4,11 @@ set -e
 
 for METHOD in naive replay sfp; do
     echo "=== Running method: $METHOD ==="
-    python train.py --method $METHOD --memory 32 \
+    python -m sfp.train --method $METHOD --memory 32 \
         --model HuggingFaceTB/SmolLM2-135M-Instruct \
         --tasks math,code --steps_per_task 200 --seed 42 \
         --out_dir out/smoke/${METHOD}
 done
 
 echo "=== Comparing results ==="
-python analyze.py --compare out/smoke/naive out/smoke/replay out/smoke/sfp
+python -m sfp.analyze --compare out/smoke/naive out/smoke/replay out/smoke/sfp

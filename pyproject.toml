@@ -31,6 +31,12 @@ metrics = [
     "prometheus-client>=0.20",
 ]
 
+[project.scripts]
+sfp = "sfp.train:main"
+sfp-train = "sfp.train:main"
+sfp-eval = "sfp.evaluate:main"
+sfp-analyze = "sfp.analyze:main"
+
 [tool.ruff]
 target-version = "py312"
 line-length = 100

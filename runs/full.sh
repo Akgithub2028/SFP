@@ -5,7 +5,7 @@ set -e
 for METHOD in naive replay distill hidden_distill orthogonal sfp; do
   for MEM in 128 512; do
     for SEED in 42 43 44; do
-      torchrun --standalone --nproc_per_node=8 train.py \
+      torchrun --standalone --nproc_per_node=8 -m sfp.train \
         --method $METHOD --memory $MEM --seed $SEED \
         --config configs/full.yaml \
         --out_dir out/full/${METHOD}_m${MEM}_s${SEED}
@@ -13,4 +13,4 @@ for METHOD in naive replay distill hidden_distill orthogonal sfp; do
   done
 done
 
-python analyze.py --paper out/full/
+python -m sfp.analyze --paper out/full/

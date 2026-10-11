@@ -12,11 +12,11 @@ install:
 	uv sync --all-extras
 
 lint:
-	uv run ruff check sfp/ tests/ scripts/ tasks/ *.py
+	uv run ruff check sfp/ tests/ scripts/ tasks/
 
 fmt:
-	uv run ruff format sfp/ tests/ scripts/ tasks/ *.py
-	uv run ruff check --fix sfp/ tests/ scripts/ tasks/ *.py
+	uv run ruff format sfp/ tests/ scripts/ tasks/
+	uv run ruff check --fix sfp/ tests/ scripts/ tasks/
 
 test:
 	uv run pytest
@@ -41,10 +41,9 @@ paper-docker-build:
 
 paper: paper-docker-build
 	docker run --rm -v "$(CURDIR)/$(PAPER_DIR)":/paper $(LATEX_IMG)
-	cp $(PAPER_DIR)/build/main.pdf sfp.pdf
 	cp $(PAPER_DIR)/build/main.pdf $(PAPER_DIR)/sfp.pdf
-	@echo "\n→ sfp.pdf and $(PAPER_DIR)/sfp.pdf"
+	@echo "\n→ $(PAPER_DIR)/sfp.pdf"
 
 clean-paper:
 	docker run --rm -v "$(CURDIR)/$(PAPER_DIR)":/paper --entrypoint rm $(LATEX_IMG) -rf /paper/build 2>/dev/null || rm -rf $(PAPER_DIR)/build
-	rm -f sfp.pdf $(PAPER_DIR)/sfp.pdf
+	rm -f $(PAPER_DIR)/sfp.pdf

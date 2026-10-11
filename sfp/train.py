@@ -22,8 +22,15 @@ import time
 import torch
 from tqdm import tqdm
 
-import data
-from evaluate import (
+import sys
+from pathlib import Path
+
+# Add project root to sys.path if run directly as script
+if __package__ is None or __package__ == "":
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from sfp import data
+from sfp.evaluate import (
     compute_bwt,
     compute_forgetting,
     compute_retention_plasticity,
@@ -31,8 +38,8 @@ from evaluate import (
     leaderboard_score,
     print_results_table,
 )
-from methods import METHODS, method_setup
-from model import load_model, save_checkpoint
+from sfp.methods import METHODS, method_setup
+from sfp.model import load_model, save_checkpoint
 
 # ---------------------------------------------------------------------------
 # Default config

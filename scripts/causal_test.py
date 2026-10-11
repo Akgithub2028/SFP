@@ -40,9 +40,9 @@ import torch
 # Add project root to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import data
-from features import build_pca_basis, collect_activations, get_layer_names, rank_importance
-from model import load_model
+from sfp import data
+from sfp.features import build_pca_basis, collect_activations, get_layer_names, rank_importance
+from sfp.model import load_model
 
 
 # ---------------------------------------------------------------------------

@@ -52,7 +52,7 @@ for ORD_IDX in "${!ORDERINGS[@]}"; do
     for SEED in "${SEEDS[@]}"; do
         RUN_DIR="${OUT_BASE}/ord${ORD_IDX}_s${SEED}"
         echo "=== Ordering ${ORD_IDX} (${ORDER}), Seed ${SEED} ==="
-        python train.py \
+        python -m sfp.train \
             --config configs/leaderboard.yaml \
             --method "$METHOD" \
             --memory "$MEMORY" \
@@ -71,7 +71,7 @@ echo "╚═══════════════════════�
 echo ""
 
 # Aggregate across all orderings and seeds
-python evaluate.py --aggregate ${OUT_BASE}/ord*_s* --format leaderboard
+python -m sfp.evaluate --aggregate ${OUT_BASE}/ord*_s* --format leaderboard
 
 # Also compute summary statistics
 echo ""
@@ -80,5 +80,5 @@ for ORD_IDX in "${!ORDERINGS[@]}"; do
     ORDER="${ORDERINGS[$ORD_IDX]}"
     echo ""
     echo "Ordering ${ORD_IDX}: ${ORDER}"
-    python evaluate.py --aggregate ${OUT_BASE}/ord${ORD_IDX}_s* --format leaderboard
+    python -m sfp.evaluate --aggregate ${OUT_BASE}/ord${ORD_IDX}_s* --format leaderboard
 done
